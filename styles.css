@@ -211,6 +211,15 @@ body.drawio-palette-resizing {
 .drawio-main {
   flex: 1;
   display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* 画布区（工具栏 + 画布），占满主区域左侧剩余空间 */
+.drawio-canvas-area {
+  flex: 1;
+  display: flex;
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
@@ -389,4 +398,376 @@ body.drawio-palette-resizing {
 
 .drawio-graph-container:has(svg)::before {
   display: none;
+}
+
+/* ============================================================
+   格式面板（点击形状时右侧滑出）
+   配色：普通 DOM 元素，使用 Obsidian CSS 变量；强调色用具体 #167dff
+   避免依赖 --interactive-accent / color-mix（Electron 作用域兼容）
+   ============================================================ */
+
+.drawio-format-panel {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: margin-right 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.drawio-format-panel.drawio-collapsed {
+  margin-right: -300px;
+  pointer-events: none;
+}
+
+.drawio-fmt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-normal);
+  flex-shrink: 0;
+}
+
+.drawio-fmt-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.drawio-fmt-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.drawio-fmt-icon-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-fmt-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt, var(--background-secondary));
+  flex-shrink: 0;
+}
+
+.drawio-fmt-tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+}
+
+.drawio-fmt-tab:hover {
+  color: var(--text-normal);
+}
+
+.drawio-fmt-tab.active {
+  color: var(--text-accent, #167dff);
+  background: transparent;
+  font-weight: 500;
+}
+
+.drawio-fmt-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 3px;
+  background: var(--text-accent, #167dff);
+  border-radius: 2px 2px 0 0;
+}
+
+.drawio-fmt-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.drawio-fmt-tabpane {
+  display: none;
+}
+
+.drawio-fmt-tabpane.active {
+  display: block;
+}
+
+/* 样式 — 快速配色网格 */
+.drawio-fmt-style-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.drawio-fmt-swatch {
+  aspect-ratio: 1.6;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.drawio-fmt-swatch:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+/* 折叠分区 */
+.drawio-fmt-section {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 8px 0;
+}
+
+.drawio-fmt-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  user-select: none;
+}
+
+.drawio-fmt-section-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.drawio-fmt-section.open .drawio-fmt-section-arrow {
+  transform: rotate(90deg);
+}
+
+.drawio-fmt-section-body {
+  display: none;
+  padding-top: 10px;
+}
+
+.drawio-fmt-section.open .drawio-fmt-section-body {
+  display: block;
+}
+
+/* 通用行 / 标签 */
+.drawio-fmt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.drawio-fmt-row:last-child {
+  margin-bottom: 0;
+}
+
+.drawio-fmt-label {
+  font-size: 13px;
+  min-width: 56px;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-label-wide {
+  font-size: 13px;
+  min-width: 72px;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-check input {
+  cursor: pointer;
+}
+
+.drawio-fmt-muted {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.drawio-fmt-divider {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 12px 0;
+}
+
+/* 颜色块（内含透明 input[type=color] 覆盖层） */
+.drawio-fmt-color {
+  position: relative;
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* 下拉框 */
+.drawio-fmt-select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-primary);
+  font-size: 13px;
+  color: var(--text-normal);
+  outline: none;
+}
+
+.drawio-fmt-select:focus {
+  border-color: #167dff;
+}
+
+/* 数字输入（带单位） */
+.drawio-fmt-number {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.drawio-fmt-number input {
+  width: 50px;
+  border: none;
+  padding: 5px 6px;
+  font-size: 13px;
+  outline: none;
+  background: transparent;
+  color: var(--text-normal);
+  text-align: right;
+}
+
+.drawio-fmt-unit {
+  padding: 5px 6px 5px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 文本工具栏（B/I/U/S + 对齐） */
+.drawio-fmt-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.drawio-fmt-tbtn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-tbtn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-fmt-tbtn.active {
+  background: rgba(22, 125, 255, 0.12);
+  border-color: rgba(22, 125, 255, 0.4);
+  color: #167dff;
+}
+
+.drawio-fmt-tbtn.icon {
+  padding: 0;
+}
+
+/* 排列按钮网格 */
+.drawio-fmt-arrange-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.drawio-fmt-arrange-btn {
+  padding: 7px 0;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-arrange-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-fmt-arrange-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.drawio-fmt-block {
+  width: 100%;
+}
+
+.drawio-fmt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 底部按钮 */
+.drawio-fmt-bottom {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.drawio-fmt-bottom-btn {
+  width: 100%;
+  padding: 7px 0;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-bottom-btn:hover {
+  background: var(--background-modifier-hover);
 }

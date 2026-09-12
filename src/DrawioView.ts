@@ -20,6 +20,7 @@ import { loadAllStencils } from "./stencil-loader";
 import { MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH } from "./settings";
 import { inflate } from "pako";
 import { t, tOr } from "./i18n";
+import { FormatPanel } from "./FormatPanel";
 
 export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
 /** 自绘流程图图标 id，在 main.ts 的 onload 里通过 addIcon 注册 */
@@ -45,6 +46,8 @@ export class DrawioView extends FileView {
   private paletteDragUp: ((e: PointerEvent) => void) | null = null;
   private paletteDragCancel: (() => void) | null = null;
   private suppressPaletteClick = false;
+  private formatPanelEl: HTMLElement | null = null;
+  private formatPanel: FormatPanel | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: DrawioPlugin) {
     super(leaf);
@@ -95,10 +98,16 @@ export class DrawioView extends FileView {
     const resizeHandle = wrapper.createDiv({ cls: "drawio-palette-resize" });
     this.makePaletteResizable(resizeHandle);
 
-    // Main area
+    // Main area（横向：左侧画布区 + 右侧格式面板）
     const mainArea = wrapper.createDiv({ cls: "drawio-main" });
-    this.buildToolbar(mainArea);
-    this.graphContainer = mainArea.createDiv({ cls: "drawio-graph-container" });
+    const canvasArea = mainArea.createDiv({ cls: "drawio-canvas-area" });
+    this.buildToolbar(canvasArea);
+    this.graphContainer = canvasArea.createDiv({ cls: "drawio-graph-container" });
+
+    // 格式面板（默认折叠隐藏，选中图形时滑出）
+    this.formatPanelEl = mainArea.createDiv({
+      cls: "drawio-format-panel drawio-collapsed",
+    });
   }
 
   /**
@@ -520,6 +529,30 @@ export class DrawioView extends FileView {
     this.setupCanvasNavigation();
     this.applyTheme();
     this.applySettings();
+    this.setupFormatPanel();
+  }
+
+  /**
+   * 右侧格式面板：监听 mxGraph 选择变化，选中图形时滑出面板并填充属性，
+   * 取消选择（点击空白）时隐藏。面板内的所有改动通过回调 markDirty 触发自动保存。
+   */
+  private setupFormatPanel(): void {
+    if (!this.graph || !this.formatPanelEl) return;
+
+    const MxEvent = mxEvent();
+    this.formatPanel = new FormatPanel(this.formatPanelEl, this.graph, () =>
+      this.markDirty()
+    );
+
+    const selectionModel = this.graph.getSelectionModel();
+    selectionModel.addListener(MxEvent.CHANGE, () => {
+      const cells = this.graph.getSelectionCells();
+      if (cells && cells.length > 0) {
+        this.formatPanel?.show(cells);
+      } else {
+        this.formatPanel?.hide();
+      }
+    });
   }
 
   /**
@@ -1139,5 +1172,7 @@ export class DrawioView extends FileView {
     this.undoManager = null;
     this.paletteEl = null;
     this.graphContainer = null;
+    this.formatPanel = null;
+    this.formatPanelEl = null;
   }
 }

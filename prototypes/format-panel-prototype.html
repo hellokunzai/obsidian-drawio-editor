@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drawio 格式面板原型</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --border: #e0e2e6;
+      --text: #22252a;
+      --text-secondary: #6b7280;
+      --accent: #167dff;
+      --accent-hover: #0f6ee6;
+      --hover: #f3f4f6;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* 左侧画布 */
+    .canvas {
+      flex: 1;
+      position: relative;
+      background: repeating-linear-gradient(0deg, transparent, transparent 19px, #e8eaed 20px),
+                  repeating-linear-gradient(90deg, transparent, transparent 19px, #e8eaed 20px);
+      background-size: 20px 20px;
+      overflow: hidden;
+    }
+    .hint {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    .shape {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px;
+      height: 90px;
+      background: #ffffff;
+      border: 2px solid #167dff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow 0.15s;
+    }
+    .shape:hover { box-shadow: 0 4px 14px rgba(22,125,255,0.18); }
+    .shape.selected {
+      outline: 2px dashed #167dff;
+      outline-offset: 4px;
+    }
+    .shape::after {
+      content: "点击选中";
+    }
+
+    /* 右侧面板 */
+    .panel {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    .panel.hidden {
+      transform: translateX(100%);
+      margin-left: -280px;
+    }
+
+    /* 头部 */
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .panel-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .icon-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+    }
+    .icon-btn:hover { background: var(--hover); color: var(--text); }
+
+    /* Tab */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: #f8f9fa;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      position: relative;
+    }
+    .tab:hover { color: var(--text); background: rgba(0,0,0,0.02); }
+    .tab.active {
+      color: var(--text);
+      background: var(--surface);
+      font-weight: 500;
+    }
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    /* 内容区 */
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* 折叠面板 */
+    .section {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 0;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      user-select: none;
+    }
+    .section-header:hover { color: var(--text); }
+    .section-arrow {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.15s;
+      color: var(--text-secondary);
+    }
+    .section.open .section-arrow { transform: rotate(90deg); }
+    .section-body {
+      display: none;
+      padding-top: 10px;
+    }
+    .section.open .section-body { display: block; }
+
+    /* 样式轮播 */
+    .style-carousel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .carousel-arrow {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .carousel-arrow:hover { background: var(--hover); color: var(--text); }
+    .style-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .style-swatch {
+      aspect-ratio: 1.35;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .style-swatch:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .style-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .carousel-dots {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #d1d5db;
+      cursor: pointer;
+    }
+    .dot.active { background: var(--accent); }
+
+    /* 控件行 */
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    .label {
+      font-size: 13px;
+      min-width: 56px;
+      color: var(--text);
+    }
+    .label-wide { min-width: 72px; }
+
+    /* 复选框 */
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .checkbox input { cursor: pointer; }
+
+    /* 下拉 */
+    select {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+
+    /* 数字输入 */
+    .number-wrap {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .number-wrap input {
+      width: 50px;
+      border: none;
+      padding: 5px 6px;
+      font-size: 13px;
+      outline: none;
+      text-align: right;
+    }
+    .number-unit {
+      padding: 5px 6px 5px 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .number-spin {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+    }
+    .number-spin button {
+      width: 18px;
+      height: 14px;
+      border: none;
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      color: var(--text-secondary);
+    }
+    .number-spin button:first-child { border-bottom: 1px solid var(--border); }
+    .number-spin button:hover { background: var(--hover); }
+
+    /* 颜色按钮 */
+    .color-btn {
+      width: 28px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      position: relative;
+      background: var(--c, #fff);
+    }
+    .color-btn::after {
+      content: "";
+      position: absolute;
+      right: 2px;
+      bottom: 2px;
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-top: 5px solid rgba(0,0,0,0.35);
+    }
+
+    /* 文本工具栏 */
+    .toolbar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .tool-btn {
+      min-width: 28px;
+      height: 28px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .tool-btn:hover { background: var(--hover); }
+    .tool-btn.active {
+      background: rgba(22,125,255,0.12);
+      border-color: rgba(22,125,255,0.35);
+      color: var(--accent);
+    }
+    .tool-btn.wide { padding: 0 10px; gap: 4px; }
+
+    /* 排列按钮网格 */
+    .arrange-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .arrange-btn {
+      padding: 7px 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .arrange-btn:hover { background: var(--hover); }
+
+    .stack-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stack-btns button {
+      padding: 7px 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .stack-btns button:hover { background: var(--hover); }
+
+    .row-labels {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .row-labels span { width: 50px; text-align: center; }
+
+    /* 底部按钮 */
+    .bottom-actions {
+      margin-top: auto;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .bottom-actions button {
+      width: 100%;
+      padding: 7px 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .bottom-actions button:hover { background: var(--hover); }
+
+    /* 图标 */
+    svg.icon { width: 14px; height: 14px; fill: currentColor; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="canvas">
+      <div class="hint">点击矩形选中，右侧滑出格式面板</div>
+      <div class="shape" id="demoShape"></div>
+    </div>
+
+    <aside class="panel" id="formatPanel">
+      <div class="panel-header">
+        <span>格式</span>
+        <div class="panel-actions">
+          <button class="icon-btn" title="折叠" id="collapseBtn">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>
+          </button>
+          <button class="icon-btn" title="关闭" id="closeBtn">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="style">样式</button>
+        <button class="tab" data-tab="text">文本</button>
+        <button class="tab" data-tab="arrange">排列</button>
+      </div>
+
+      <div class="panel-body">
+        <!-- 样式 -->
+        <div class="tab-content active" id="tab-style">
+          <div class="style-carousel">
+            <button class="carousel-arrow" id="prevStyle">&#10094;</button>
+            <div class="style-grid" id="styleGrid"></div>
+            <button class="carousel-arrow" id="nextStyle">&#10095;</button>
+          </div>
+          <div class="carousel-dots" id="styleDots"></div>
+
+          <div class="section open">
+            <div class="section-header">
+              <span>填充</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="row">
+                <label class="checkbox"><input type="checkbox" checked><span>填充</span></label>
+                <select><option>Auto</option><option>实心</option><option>无</option></select>
+                <button class="color-btn" style="--c:#fff" title="填充颜色"></button>
+              </div>
+              <div class="row">
+                <label class="checkbox"><input type="checkbox"><span>渐变</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="section open">
+            <div class="section-header">
+              <span>线条</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="row">
+                <label class="checkbox"><input type="checkbox" checked><span>线条</span></label>
+                <button class="color-btn" style="--c:#000" title="线条颜色"></button>
+              </div>
+              <div class="row">
+                <select><option>─────────</option><option>- - - - -</option><option>· · · · ·</option></select>
+                <div class="number-wrap"><input type="text" value="1"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+              </div>
+              <div class="row">
+                <span class="label">周长</span>
+                <div class="number-wrap"><input type="text" value="0"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin:14px 0;">
+            <span class="label">不透明度</span>
+            <div class="number-wrap"><input type="text" value="100"><span class="number-unit">%</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span>效果</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="row"><span class="text-secondary" style="font-size:12px">投影、圆角等效果选项</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文本 -->
+        <div class="tab-content" id="tab-text">
+          <div class="row">
+            <select style="width:100%"><option>Helvetica</option><option>Arial</option><option>Inter</option><option>宋体</option></select>
+          </div>
+
+          <div class="toolbar">
+            <button class="tool-btn" style="font-weight:bold">B</button>
+            <button class="tool-btn" style="font-style:italic">I</button>
+            <button class="tool-btn" style="text-decoration:underline">U</button>
+            <button class="tool-btn" title="删除线" style="text-decoration:line-through">S</button>
+            <button class="tool-btn wide">12 px</button>
+          </div>
+
+          <div class="toolbar">
+            <button class="tool-btn">&#8676;</button>
+            <button class="tool-btn active">&#8596;</button>
+            <button class="tool-btn">&#8677;</button>
+            <button class="tool-btn">&#8593;</button>
+            <button class="tool-btn active">&#8597;</button>
+            <button class="tool-btn">&#8595;</button>
+          </div>
+
+          <div class="row">
+            <span class="label">位置</span>
+            <select><option>水平居中</option><option>左对齐</option><option>右对齐</option></select>
+          </div>
+          <div class="row">
+            <span class="label">书写方向</span>
+            <select><option>自动</option><option>水平</option><option>垂直</option></select>
+          </div>
+
+          <div class="row"><label class="checkbox"><input type="checkbox" checked><span>字体颜色</span></label><button class="color-btn" style="--c:#000"></button></div>
+          <div class="row"><label class="checkbox"><input type="checkbox"><span>背景色</span></label><button class="color-btn" style="--c:#fff"></button></div>
+          <div class="row"><label class="checkbox"><input type="checkbox"><span>边框颜色</span></label><button class="color-btn" style="--c:#fff"></button></div>
+          <div class="row"><label class="checkbox"><input type="checkbox"><span>阴影</span></label></div>
+
+          <div style="border-top:1px solid var(--border); margin:10px 0;"></div>
+
+          <div class="row"><label class="checkbox"><input type="checkbox" checked><span>自动换行</span></label></div>
+          <div class="row"><label class="checkbox"><input type="checkbox" checked><span>格式化文本</span></label></div>
+          <div class="row"><label class="checkbox"><input type="checkbox"><span>转换标签为 SVG</span></label><span style="font-size:12px;color:var(--text-secondary)">?</span></div>
+          <div class="row"><label class="checkbox"><input type="checkbox"><span>自动字体大小</span></label></div>
+
+          <div class="row" style="margin-top:14px;">
+            <span class="label">不透明度</span>
+            <div class="number-wrap"><input type="text" value="100"><span class="number-unit">%</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span>间距</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="row"><span class="text-secondary" style="font-size:12px">行间距、字间距等</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 排列 -->
+        <div class="tab-content" id="tab-arrange">
+          <div class="arrange-grid">
+            <button class="arrange-btn">移至最前</button>
+            <button class="arrange-btn">移至最后</button>
+            <button class="arrange-btn">上移一层</button>
+            <button class="arrange-btn">下移一层</button>
+          </div>
+
+          <div class="section open">
+            <div class="section-header">
+              <span>大小 / 位置</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="row">
+                <span class="label label-wide">大小</span>
+                <svg class="icon" style="width:18px;height:18px;color:var(--text-secondary)" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg>
+                <div class="number-wrap"><input type="text" value="80"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+                <div class="number-wrap"><input type="text" value="80"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+              </div>
+              <div class="row-labels"><span></span><span>宽</span><span>高</span></div>
+              <div class="row">
+                <label class="checkbox"><input type="checkbox" checked><span>限制比例</span></label>
+              </div>
+              <div class="row">
+                <span class="label label-wide">位置</span>
+                <div class="number-wrap"><input type="text" value="370"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+                <div class="number-wrap"><input type="text" value="340"><span class="number-unit">pt</span><div class="number-spin"><button>&#9650;</button><button>&#9660;</button></div></div>
+              </div>
+              <div class="row-labels"><span></span><span>左</span><span>上</span></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span>旋转</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body"><div class="row"><span class="text-secondary" style="font-size:12px">旋转角度</span></div></div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span>翻转</span>
+              <svg class="icon section-arrow" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </div>
+            <div class="section-body"><div class="row"><span class="text-secondary" style="font-size:12px">水平 / 垂直翻转</span></div></div>
+          </div>
+
+          <div class="row" style="margin:14px 0;">
+            <button class="arrange-btn" style="width:100%">对齐到网格</button>
+          </div>
+
+          <div class="stack-btns">
+            <button>组合</button>
+            <button>复制大小</button>
+            <button>锁定 / 解锁</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-actions">
+        <button>编辑</button>
+        <button>复制样式</button>
+        <button>设置为默认样式</button>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const shape = document.getElementById('demoShape');
+    const panel = document.getElementById('formatPanel');
+    const closeBtn = document.getElementById('closeBtn');
+    const collapseBtn = document.getElementById('collapseBtn');
+
+    shape.addEventListener('click', () => {
+      shape.classList.add('selected');
+      panel.classList.remove('hidden');
+    });
+    closeBtn.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      shape.classList.remove('selected');
+    });
+    collapseBtn.addEventListener('click', () => {
+      panel.classList.toggle('hidden');
+    });
+
+    // Tab 切换
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // 折叠面板
+    document.querySelectorAll('.section-header').forEach(header => {
+      header.addEventListener('click', () => {
+        header.parentElement.classList.toggle('open');
+      });
+    });
+
+    // 工具栏按钮切换
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => btn.classList.toggle('active'));
+    });
+
+    // 样式轮播
+    const palettes = [
+      ['#ffffff','#f3f4f6','#dbeafe','#dcfce7','#ffedd5','#fef3c7','#fee2e2','#f3e8ff'],
+      ['#e5e7eb','#d1d5db','#bfdbfe','#bbf7d0','#fed7aa','#fde68a','#fecaca','#e9d5ff']
+    ];
+    let page = 0;
+    const grid = document.getElementById('styleGrid');
+    const dots = document.getElementById('styleDots');
+    function renderStyles() {
+      grid.innerHTML = '';
+      palettes[page].forEach((c, i) => {
+        const div = document.createElement('div');
+        div.className = 'style-swatch' + (i === 0 && page === 0 ? ' active' : '');
+        div.style.setProperty('--c', c);
+        div.addEventListener('click', () => {
+          document.querySelectorAll('.style-swatch').forEach(s => s.classList.remove('active'));
+          div.classList.add('active');
+        });
+        grid.appendChild(div);
+      });
+      dots.innerHTML = '';
+      palettes.forEach((_, i) => {
+        const d = document.createElement('span');
+        d.className = 'dot' + (i === page ? ' active' : '');
+        d.addEventListener('click', () => { page = i; renderStyles(); });
+        dots.appendChild(d);
+      });
+    }
+    document.getElementById('prevStyle').addEventListener('click', () => { page = Math.max(0, page-1); renderStyles(); });
+    document.getElementById('nextStyle').addEventListener('click', () => { page = Math.min(palettes.length-1, page+1); renderStyles(); });
+    renderStyles();
+  </script>
+</body>
+</html>
