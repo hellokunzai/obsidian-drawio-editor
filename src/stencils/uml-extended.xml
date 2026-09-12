@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shapes name="uml-extended">
+  <!-- UML Class -->
+  <shape name="umlClass" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="0" w="100" h="80"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <line x="0" y="20"/>
+      <line x="100" y="20"/>
+      <line x="0" y="50"/>
+      <line x="100" y="50"/>
+    </foreground>
+  </shape>
+
+  <!-- UML Actor (stick figure) -->
+  <shape name="umlActor" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="40" y="0" w="20" h="20"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <path>
+        <move x="50" y="20"/>
+        <line x="50" y="50"/>
+        <move x="30" y="35"/>
+        <line x="70" y="35"/>
+        <move x="50" y="50"/>
+        <line x="35" y="80"/>
+        <move x="50" y="50"/>
+        <line x="65" y="80"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Use Case -->
+  <shape name="umlUseCase" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="0" y="0" w="100" h="50"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Package -->
+  <shape name="umlPackage" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="15"/>
+        <line x="25" y="15"/>
+        <line x="25" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="0" y="15"/>
+        <line x="25" y="15"/>
+        <line x="25" y="0"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Note -->
+  <shape name="umlNote" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="80" y="0"/>
+        <line x="100" y="20"/>
+        <line x="100" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="80" y="0"/>
+        <line x="80" y="20"/>
+        <line x="100" y="20"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Component -->
+  <shape name="umlComponent" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="10" y="0" w="80" h="60"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <rect x="0" y="10" w="20" h="10"/>
+      <rect x="0" y="30" w="20" h="10"/>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Node -->
+  <shape name="umlNode" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="10" y="0"/>
+        <line x="90" y="0"/>
+        <line x="100" y="10"/>
+        <line x="100" y="70"/>
+        <line x="90" y="60"/>
+        <line x="10" y="60"/>
+        <line x="0" y="70"/>
+        <line x="0" y="10"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="10" y="0"/>
+        <line x="10" y="60"/>
+        <move x="90" y="0"/>
+        <line x="90" y="60"/>
+        <move x="0" y="70"/>
+        <line x="10" y="60"/>
+        <move x="100" y="70"/>
+        <line x="90" y="60"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Initial state (filled circle) -->
+  <shape name="umlInitialState" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="25" y="25" w="50" h="50"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML Final state (circle with inner circle) -->
+  <shape name="umlFinalState" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="0" y="0" w="100" h="100"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <ellipse x="20" y="20" w="60" h="60"/>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- UML State/Activity (rounded rect) -->
+  <shape name="umlState" aspect="1" strokewidth="inherit">
+    <background>
+      <roundrect x="0" y="0" w="100" h="40" arcsize="20"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+</shapes>

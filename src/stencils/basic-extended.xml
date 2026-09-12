@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shapes name="basic-extended">
+  <!-- Process (rectangle with vertical bars near both ends) -->
+  <shape name="process" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="0" w="100" h="60"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="10" y="0"/>
+        <line x="10" y="60"/>
+        <move x="90" y="0"/>
+        <line x="90" y="60"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Parallelogram -->
+  <shape name="parallelogram" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="20" y="0"/>
+        <line x="100" y="0"/>
+        <line x="80" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Note (document with large folded corner) -->
+  <shape name="note" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="80" y="0"/>
+        <line x="100" y="20"/>
+        <line x="100" y="80"/>
+        <line x="0" y="80"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="80" y="0"/>
+        <line x="80" y="20"/>
+        <line x="100" y="20"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Internal storage (square with left bar and top bar) -->
+  <shape name="internalStorage" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="0" w="80" h="80"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="10" y="0"/>
+        <line x="10" y="80"/>
+        <move x="0" y="10"/>
+        <line x="80" y="10"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Cube -->
+  <shape name="cube" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="15"/>
+        <line x="15" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="65"/>
+        <line x="85" y="80"/>
+        <line x="0" y="80"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="0" y="15"/>
+        <line x="85" y="15"/>
+        <line x="100" y="0"/>
+        <move x="85" y="15"/>
+        <line x="85" y="80"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Chevron -->
+  <shape name="chevron" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="60" y="0"/>
+        <line x="100" y="30"/>
+        <line x="60" y="60"/>
+        <line x="0" y="60"/>
+        <line x="40" y="30"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Trapezoid (narrow top, wide bottom) -->
+  <shape name="trapezoid" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="20" y="0"/>
+        <line x="80" y="0"/>
+        <line x="100" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Moon (crescent) -->
+  <shape name="moon" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="55" y="0"/>
+        <quad x="0" y="10" x="0" y="40"/>
+        <quad x="0" y="70" x="55" y="80"/>
+        <quad x="35" y="65" x="35" y="40"/>
+        <quad x="35" y="15" x="55" y="0"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Half ellipse (D shape, flat right edge) -->
+  <shape name="halfEllipse" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="80" y="0"/>
+        <quad x="0" y="0" x="0" y="40"/>
+        <quad x="0" y="80" x="80" y="80"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Curve (rectangle with concave right edge) -->
+  <shape name="curve" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="60" y="0"/>
+        <quad x="20" y="40" x="60" y="80"/>
+        <line x="0" y="80"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+</shapes>

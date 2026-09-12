@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shapes name="flowchart-extended">
+  <!-- Document shape -->
+  <shape name="document" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="70"/>
+        <quad x="75" y="90" x="50" y="70"/>
+        <quad x="25" y="50" x="0" y="70"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Multi-document shape -->
+  <shape name="documents" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="10" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="70"/>
+        <quad x="75" y="90" x="50" y="70"/>
+        <quad x="25" y="50" x="0" y="70"/>
+        <line x="0" y="10"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <line x="0" y="10"/>
+      <line x="90" y="10"/>
+    </foreground>
+  </shape>
+
+  <!-- Manual input (parallelogram variant) -->
+  <shape name="manual_input" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="10" y="0"/>
+        <line x="100" y="0"/>
+        <line x="90" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Data shape (cylinder variant) -->
+  <shape name="data" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="10"/>
+        <quad x="50" y="-10" x="100" y="10"/>
+        <line x="100" y="70"/>
+        <quad x="50" y="90" x="0" y="70"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <quad x="50" y="10" x="100" y="30"/>
+    </foreground>
+  </shape>
+
+  <!-- Decision (predefined) shape with double border -->
+  <shape name="decision2" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="50" y="0"/>
+        <line x="100" y="40"/>
+        <line x="50" y="80"/>
+        <line x="0" y="40"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="44" y="5"/>
+        <line x="94" y="40"/>
+        <line x="44" y="75"/>
+        <line x="6" y="40"/>
+        <close/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Summing junction (circle with X) -->
+  <shape name="summing_junction" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="0" y="0" w="100" h="100"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <path>
+        <move x="15" y="15"/>
+        <line x="85" y="85"/>
+        <move x="85" y="15"/>
+        <line x="15" y="85"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Or shape (circle with curved line) -->
+  <shape name="or" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="0" y="0" w="100" h="100"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <path>
+        <move x="0" y="50"/>
+        <quad x="50" y="0" x="100" y="50"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Preparation (hexagon variant) -->
+  <shape name="preparation" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="20" y="0"/>
+        <line x="80" y="0"/>
+        <line x="100" y="40"/>
+        <line x="80" y="80"/>
+        <line x="20" y="80"/>
+        <line x="0" y="40"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Display shape -->
+  <shape name="display" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="80" y="0"/>
+        <line x="100" y="30"/>
+        <line x="100" y="60"/>
+        <line x="80" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Manual operation (trapezoid) -->
+  <shape name="manual_operation" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="0"/>
+        <line x="90" y="60"/>
+        <line x="10" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Off-page connector (home plate) -->
+  <shape name="off_page_connector" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="50"/>
+        <line x="50" y="100"/>
+        <line x="0" y="50"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Magnetic disk (cylinder with label) -->
+  <shape name="magnetic_disk" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="15"/>
+        <quad x="50" y="-5" x="100" y="15"/>
+        <line x="100" y="75"/>
+        <quad x="50" y="95" x="0" y="75"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <quad x="50" y="15" x="100" y="35"/>
+    </foreground>
+  </shape>
+
+  <!-- Stored data -->
+  <shape name="stored_data" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="20" y="0"/>
+        <quad x="-5" y="40" x="20" y="80"/>
+        <line x="100" y="80"/>
+        <quad x="75" y="40" x="100" y="0"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Sequential data -->
+  <shape name="sequential_data" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="10"/>
+        <quad x="50" y="-10" x="100" y="10"/>
+        <line x="100" y="60"/>
+        <quad x="50" y="80" x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <quad x="50" y="10" x="100" y="30"/>
+    </foreground>
+  </shape>
+
+  <!-- Card (with folded corner) -->
+  <shape name="card" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="85" y="0"/>
+        <line x="100" y="15"/>
+        <line x="100" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="85" y="0"/>
+        <line x="85" y="15"/>
+        <line x="100" y="15"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Tape (wave shape) -->
+  <shape name="tape" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="20"/>
+        <quad x="25" y="0" x="50" y="20"/>
+        <quad x="75" y="40" x="100" y="20"/>
+        <line x="100" y="40"/>
+        <quad x="75" y="60" x="50" y="40"/>
+        <quad x="25" y="20" x="0" y="40"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Callout -->
+  <shape name="callout" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="60"/>
+        <line x="60" y="60"/>
+        <line x="50" y="80"/>
+        <line x="40" y="60"/>
+        <line x="0" y="60"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Single-line document -->
+  <shape name="single_document" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="0"/>
+        <line x="100" y="70"/>
+        <quad x="75" y="90" x="50" y="70"/>
+        <quad x="25" y="50" x="0" y="70"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+</shapes>

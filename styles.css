@@ -1,0 +1,392 @@
+/* Draw.io Flowchart Editor Plugin Styles */
+
+.drawio-editor-container {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.drawio-wrapper {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Palette Sidebar */
+.drawio-palette {
+  width: 180px; /* 初始兜底值，实际由 JS 读 settings.paletteWidth 覆盖 */
+  min-width: 140px;
+  border-right: 1px solid var(--background-modifier-border);
+  overflow-y: auto;
+  background: var(--background-secondary);
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+/* 面板右缘拖拽把手 */
+.drawio-palette-resize {
+  width: 6px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+  touch-action: none;
+  user-select: none;
+}
+
+.drawio-palette-resize:hover,
+body.drawio-palette-resizing .drawio-palette-resize {
+  background: var(--background-modifier-border);
+}
+
+/* 拖拽宽度期间：全局抓手光标 + 禁止文本选中 */
+body.drawio-palette-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* 面板搜索框（sticky 吸顶） */
+.drawio-palette-search {
+  position: sticky;
+  top: -8px; /* 抵消 palette 的 padding-top，吸附到最顶 */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 8px;
+  background: var(--background-secondary);
+  z-index: 1;
+}
+
+.drawio-palette-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 3px 8px;
+  font-size: var(--font-ui-small);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+}
+
+.drawio-palette-search-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.drawio-palette-no-results {
+  padding: 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* 过滤隐藏（形状项 / 分组 / 提示通用） */
+.drawio-hidden {
+  display: none !important;
+}
+
+/* 搜索时强制展开含匹配项的分组，不破坏用户原有折叠状态 */
+.drawio-palette-section-filtered .drawio-palette-grid {
+  display: grid !important;
+}
+
+.drawio-palette-section {
+  margin-bottom: 0;
+}
+
+.drawio-palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 12px;
+  margin-bottom: 4px;
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  background: var(--nav-item-background, transparent);
+  color: var(--nav-item-color, var(--text-muted));
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.drawio-palette-header:hover {
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+  color: var(--nav-item-color-hover, var(--text-normal));
+}
+
+.drawio-palette-title {
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.drawio-palette-arrow {
+  font-size: var(--font-ui-smaller);
+  transition: transform 0.15s ease;
+  pointer-events: none;
+}
+
+.drawio-palette-section-collapsed .drawio-palette-grid {
+  display: none;
+}
+
+.drawio-palette-section-collapsed .drawio-palette-arrow {
+  transform: rotate(-90deg);
+}
+
+.drawio-palette-grid {
+  display: grid;
+  /* auto-fill：列数随面板宽度自适应，拖拽右缘把手时自动换行重排 */
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: 1px;
+  padding: 0 6px;
+}
+
+.drawio-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: grab;
+  transition: background 0.15s ease;
+  color: var(--text-normal);
+  aspect-ratio: 1;
+  /* 移动端保留面板纵向滚动；横向拖出即触发图形拖拽（pointer 事件方案） */
+  touch-action: pan-y;
+}
+
+.drawio-palette-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-palette-item:active {
+  cursor: grabbing;
+  background: var(--background-modifier-active-hover);
+}
+
+/* 拖拽跟随层：只承载图形轮廓，必须透明无底（否则会拖着一块灰底方块）。
+   由 JS 用 transform 跟随光标定位，自身不响应任何指针事件。 */
+.drawio-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  pointer-events: none;
+  opacity: 1;
+  z-index: var(--layer-popover, 100);
+  will-change: transform;
+}
+
+.drawio-drag-ghost svg {
+  display: block;
+  color: var(--text-normal);
+  opacity: 1;
+}
+
+.drawio-palette-item svg {
+  color: var(--text-normal);
+  opacity: 0.8;
+}
+
+.drawio-palette-item:hover svg {
+  opacity: 1;
+}
+
+/* Main Area */
+.drawio-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Toolbar */
+.drawio-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.drawio-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.drawio-toolbar-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-toolbar-btn:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.drawio-toolbar-btn svg {
+  pointer-events: none;
+}
+
+.drawio-toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--background-modifier-border);
+  margin: 0 4px;
+}
+
+/* Graph Canvas Container */
+.drawio-graph-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background-color: var(--background-primary);
+}
+
+/* mxGraph canvas overrides */
+.drawio-graph-container .mxGraph {
+  width: 100%;
+  height: 100%;
+  border: none !important;
+}
+
+/* 网格画在容器背景层上，svg 必须透明才透得出来 */
+.drawio-graph-container svg {
+  background: transparent;
+}
+
+/* mxGraph tooltip */
+.mxTooltip {
+  background: var(--background-modifier-message) !important;
+  color: var(--text-normal) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 4px;
+  font-size: var(--font-ui-smaller) !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* mxGraph rubberband selection — draw.io 风格：淡蓝填充 + 实线蓝边框 */
+.drawio-graph-container .mxRubberband {
+  position: absolute !important;
+  pointer-events: none !important;
+  border: 1px solid #167dff !important;
+  background-color: rgba(22, 125, 255, 0.12) !important;
+  opacity: 1 !important;
+  border-radius: 2px;
+  box-sizing: border-box;
+  z-index: 30;
+}
+
+/* 框内已有图形（松手后会被选中）时，边框加粗、填充加深作为反馈 */
+.drawio-graph-container .mxRubberband.mxRubberband-preview {
+  border-width: 2px !important;
+  background-color: rgba(22, 125, 255, 0.24) !important;
+}
+
+/* 画布平移光标：空格按住 = grab，拖拽进行中 = grabbing */
+.drawio-graph-container.drawio-pan-ready,
+.drawio-graph-container.drawio-pan-ready * {
+  cursor: grab !important;
+}
+
+.drawio-graph-container.drawio-panning,
+.drawio-graph-container.drawio-panning * {
+  cursor: grabbing !important;
+}
+
+/* mxGraph handler colors — adapt to theme */
+.theme-dark .mxCellRenderer svg path {
+  filter: none;
+}
+
+/* mxGraph selection border */
+.mxGraphHandler .mxCellHighlight {
+  stroke: var(--interactive-accent) !important;
+}
+
+/* mxGraph editing input */
+.mxWindow {
+  background: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 4px;
+}
+
+.mxWindow input,
+.mxWindow textarea {
+  background: var(--background-primary) !important;
+  color: var(--text-normal) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+}
+
+/* Popup menu */
+.mxPopupMenu {
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.mxPopupMenu tr {
+  color: var(--text-normal) !important;
+}
+
+.mxPopupMenu tr:hover {
+  background: var(--background-modifier-hover) !important;
+}
+
+/* Drag preview */
+.drawio-drag-preview {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Empty state hint */
+.drawio-graph-container::before {
+  content: "Drag shapes from the palette or double-click to create a diagram";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 0;
+}
+
+.drawio-graph-container:has(svg) {
+  /* Hide empty state hint when graph has content */
+}
+
+.drawio-graph-container:has(svg)::before {
+  display: none;
+}

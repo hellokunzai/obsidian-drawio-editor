@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shapes name="network-extended">
+  <!-- Server -->
+  <shape name="server" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="10" y="0" w="80" h="80"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <line x="10" y="20"/>
+      <line x="90" y="20"/>
+      <line x="10" y="40"/>
+      <line x="90" y="40"/>
+      <line x="10" y="60"/>
+      <line x="90" y="60"/>
+      <circle x="18" y="8" r="3"/>
+      <circle x="18" y="28" r="3"/>
+      <circle x="18" y="48" r="3"/>
+      <circle x="18" y="68" r="3"/>
+    </foreground>
+  </shape>
+
+  <!-- Cloud -->
+  <shape name="cloud" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="30" y="50"/>
+        <quad x="0" y="40" x="15" y="25"/>
+        <quad x="20" y="0" x="45" y="10"/>
+        <quad x="70" y="0" x="80" y="20"/>
+        <quad x="100" y="20" x="95" y="45"/>
+        <quad x="100" y="70" x="75" y="75"/>
+        <quad x="50" y="85" x="30" y="50"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Database -->
+  <shape name="database" aspect="1" strokewidth="inherit">
+    <background>
+      <path>
+        <move x="0" y="10"/>
+        <quad x="50" y="-10" x="100" y="10"/>
+        <line x="100" y="70"/>
+        <quad x="50" y="90" x="0" y="70"/>
+        <close/>
+      </path>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <quad x="50" y="10" x="100" y="30"/>
+      <quad x="50" y="30" x="0" y="50"/>
+    </foreground>
+  </shape>
+
+  <!-- Firewall -->
+  <shape name="firewall" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="0" w="100" h="80"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="0" y="0"/>
+        <line x="100" y="80"/>
+        <move x="100" y="0"/>
+        <line x="0" y="80"/>
+        <move x="50" y="0"/>
+        <line x="50" y="80"/>
+        <move x="0" y="40"/>
+        <line x="100" y="40"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Router -->
+  <shape name="router" aspect="1" strokewidth="inherit">
+    <background>
+      <roundrect x="0" y="20" w="100" h="40" arcsize="15"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="15" y="20"/>
+        <line x="5" y="5"/>
+        <move x="50" y="20"/>
+        <line x="50" y="5"/>
+        <move x="85" y="20"/>
+        <line x="95" y="5"/>
+        <move x="15" y="60"/>
+        <line x="5" y="75"/>
+        <move x="50" y="60"/>
+        <line x="50" y="75"/>
+        <move x="85" y="60"/>
+        <line x="95" y="75"/>
+      </path>
+      <stroke/>
+      <circle x="20" y="35" r="3"/>
+      <circle x="35" y="35" r="3"/>
+    </foreground>
+  </shape>
+
+  <!-- Network computer -->
+  <shape name="networkComputer" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="10" w="100" h="60"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <rect x="10" y="20" w="60" h="40"/>
+      <stroke/>
+      <circle x="80" y="35" r="3"/>
+      <circle x="80" y="50" r="3"/>
+    </foreground>
+  </shape>
+
+  <!-- Switch -->
+  <shape name="switch" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="30" w="100" h="30"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <path>
+        <move x="20" y="30"/>
+        <line x="20" y="15"/>
+        <move x="40" y="30"/>
+        <line x="40" y="15"/>
+        <move x="60" y="30"/>
+        <line x="60" y="15"/>
+        <move x="80" y="30"/>
+        <line x="80" y="15"/>
+        <move x="20" y="60"/>
+        <line x="20" y="75"/>
+        <move x="40" y="60"/>
+        <line x="40" y="75"/>
+        <move x="60" y="60"/>
+        <line x="60" y="75"/>
+        <move x="80" y="60"/>
+        <line x="80" y="75"/>
+      </path>
+      <stroke/>
+    </foreground>
+  </shape>
+
+  <!-- Mobile phone -->
+  <shape name="mobilePhone" aspect="1" strokewidth="inherit">
+    <background>
+      <roundrect x="25" y="0" w="50" h="80" arcsize="10"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <line x="25" y="12"/>
+      <line x="75" y="12"/>
+      <line x="25" y="68"/>
+      <line x="75" y="68"/>
+      <circle x="50" y="73" r="2"/>
+    </foreground>
+  </shape>
+
+  <!-- User/person icon -->
+  <shape name="user" aspect="1" strokewidth="inherit">
+    <background>
+      <ellipse x="35" y="0" w="30" h="30"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <path>
+        <move x="20" y="80"/>
+        <quad x="50" y="35" x="80" y="80"/>
+        <close/>
+      </path>
+      <fillstroke/>
+    </foreground>
+  </shape>
+
+  <!-- Building/data center -->
+  <shape name="dataCenter" aspect="1" strokewidth="inherit">
+    <background>
+      <rect x="0" y="0" w="100" h="80"/>
+    </background>
+    <foreground>
+      <fillstroke/>
+      <strokewidth width="1"/>
+      <rect x="10" y="10" w="25" h="25"/>
+      <rect x="40" y="10" w="25" h="25"/>
+      <rect x="70" y="10" w="20" h="25"/>
+      <rect x="10" y="45" w="25" h="25"/>
+      <rect x="40" y="45" w="25" h="25"/>
+      <rect x="70" y="45" w="20" h="25"/>
+      <stroke/>
+    </foreground>
+  </shape>
+</shapes>
