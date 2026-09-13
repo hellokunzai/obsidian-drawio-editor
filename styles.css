@@ -605,6 +605,24 @@ body.drawio-palette-resizing {
   cursor: pointer;
 }
 
+/* 效果选项 2x2 网格 */
+.drawio-fmt-effects-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.drawio-fmt-effects-grid .drawio-fmt-check {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.drawio-fmt-effects-grid .drawio-fmt-check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .drawio-fmt-muted {
   font-size: 12px;
   color: var(--text-faint);
@@ -643,6 +661,73 @@ body.drawio-palette-resizing {
 
 .drawio-fmt-select:focus {
   border-color: #167dff;
+}
+
+/* 可视化线条样式选择器 */
+.drawio-fmt-linestyle {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.drawio-fmt-linestyle-trigger {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-primary);
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-linestyle-trigger:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.drawio-fmt-linestyle-trigger svg {
+  width: 100%;
+  height: 20px;
+  display: block;
+}
+
+.drawio-fmt-linestyle-menu {
+  position: fixed;
+  display: none;
+  z-index: 100;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  gap: 2px;
+  flex-direction: column;
+}
+
+.drawio-fmt-linestyle-menu.open {
+  display: flex;
+}
+
+.drawio-fmt-linestyle-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.drawio-fmt-linestyle-item:hover,
+.drawio-fmt-linestyle-item.active {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-fmt-linestyle-item svg {
+  width: 100%;
+  height: 20px;
+  display: block;
 }
 
 /* 数字输入（带单位） */

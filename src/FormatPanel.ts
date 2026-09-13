@@ -61,11 +61,18 @@ export class FormatPanel {
   private styleGrid!: HTMLElement;
   private fillCheck!: HTMLInputElement;
   private fillColor!: HTMLElement;
+  private gradientCheck!: HTMLInputElement;
+  private gradientDirection!: HTMLSelectElement;
+  private gradientColor!: HTMLElement;
   private strokeCheck!: HTMLInputElement;
   private strokeColor!: HTMLElement;
-  private lineType!: HTMLSelectElement;
+  private lineType!: HTMLElement;
   private strokeWidth!: HTMLElement;
   private styleOpacity!: HTMLElement;
+  private roundedCheck!: HTMLInputElement;
+  private sketchCheck!: HTMLInputElement;
+  private glassCheck!: HTMLInputElement;
+  private shadowCheck!: HTMLInputElement;
   // 文本 Tab
   private fontFamily!: HTMLSelectElement;
   private fontSize!: HTMLSelectElement;
@@ -79,7 +86,6 @@ export class FormatPanel {
   private fontColor!: HTMLElement;
   private textBgColor!: HTMLElement;
   private textBorderColor!: HTMLElement;
-  private shadowCheck!: HTMLInputElement;
   private wrapCheck!: HTMLInputElement;
   private htmlCheck!: HTMLInputElement;
   private textOpacity!: HTMLElement;
@@ -240,6 +246,53 @@ export class FormatPanel {
           );
         });
         body.appendChild(row);
+
+        // 渐变
+        const gradRow = h("div", "drawio-fmt-row");
+        this.gradientCheck = h("input") as HTMLInputElement;
+        this.gradientCheck.type = "checkbox";
+        this.gradientCheck.checked = false;
+        const gradLbl = h("label", "drawio-fmt-check");
+        gradLbl.appendChild(this.gradientCheck);
+        gradLbl.appendChild(h("span", undefined, t("format.gradient")));
+        gradRow.appendChild(gradLbl);
+        this.gradientDirection = this.selectField(
+          [
+            { v: this.MxConstants.DIRECTION_SOUTH, t: t("format.gradientDown") },
+            { v: this.MxConstants.DIRECTION_NORTH, t: t("format.gradientUp") },
+            { v: this.MxConstants.DIRECTION_WEST, t: t("format.gradientLeft") },
+            { v: this.MxConstants.DIRECTION_EAST, t: t("format.gradientRight") },
+          ],
+          this.MxConstants.DIRECTION_SOUTH,
+          (v) => {
+            if (this.gradientCheck.checked)
+              this.applyStyle(this.MxConstants.STYLE_GRADIENT_DIRECTION, v);
+          }
+        );
+        gradRow.appendChild(this.gradientDirection);
+        this.gradientColor = this.colorField("#000000", (hex) => {
+          if (this.gradientCheck.checked)
+            this.applyStyle(this.MxConstants.STYLE_GRADIENTCOLOR, hex);
+        });
+        gradRow.appendChild(this.gradientColor);
+        this.gradientCheck.addEventListener("change", () => {
+          const on = this.gradientCheck.checked;
+          this.gradientDirection.disabled = !on;
+          (this.gradientColor as any)._input.disabled = !on;
+          this.applyStyle(
+            this.MxConstants.STYLE_GRADIENTCOLOR,
+            on ? this.hexOf(this.gradientColor) : null
+          );
+          if (on) {
+            this.applyStyle(
+              this.MxConstants.STYLE_GRADIENT_DIRECTION,
+              this.gradientDirection.value
+            );
+          } else {
+            this.applyStyle(this.MxConstants.STYLE_GRADIENT_DIRECTION, null);
+          }
+        });
+        body.appendChild(gradRow);
       })
     );
 
@@ -268,23 +321,29 @@ export class FormatPanel {
         body.appendChild(row1);
 
         const row2 = h("div", "drawio-fmt-row");
-        this.lineType = this.selectField(
-          [
-            { v: "solid", t: t("format.lineSolid") },
-            { v: "dashed", t: t("format.lineDashed") },
-            { v: "dotted", t: t("format.lineDotted") },
-          ],
+        const lineStyles = [
+          { v: "solid", dash: null as string | null },
+          { v: "dashed", dash: "6 4" },
+          { v: "dotted", dash: "1 3" },
+          { v: "dashDot", dash: "6 2 1 2" },
+          { v: "dashDotDot", dash: "6 2 1 2 1 2" },
+        ];
+        this.lineType = this.lineStyleField(
+          lineStyles,
           "solid",
           (v) => {
             if (v === "solid") {
               this.applyStyle(this.MxConstants.STYLE_DASHED, null);
               this.applyStyle(this.MxConstants.STYLE_FIX_DASH, null);
-            } else if (v === "dashed") {
-              this.applyStyle(this.MxConstants.STYLE_DASHED, "1");
-              this.applyStyle(this.MxConstants.STYLE_FIX_DASH, null);
+              this.applyStyle(this.MxConstants.STYLE_DASH_PATTERN, null);
             } else {
+              const opt = lineStyles.find((o) => o.v === v);
               this.applyStyle(this.MxConstants.STYLE_DASHED, "1");
               this.applyStyle(this.MxConstants.STYLE_FIX_DASH, "1");
+              this.applyStyle(
+                this.MxConstants.STYLE_DASH_PATTERN,
+                opt?.dash ?? "3 3"
+              );
             }
           }
         );
@@ -309,20 +368,40 @@ export class FormatPanel {
     opRow.appendChild(this.styleOpacity);
     pane.appendChild(opRow);
 
-    // 效果（占位）
+    // 效果
     pane.appendChild(
       this.section(
         t("format.effects"),
         (body) => {
-          body.appendChild(
-            h(
-              "div",
-              "drawio-fmt-muted",
-              t("format.effectsPlaceholder")
-            )
+          const grid = h("div", "drawio-fmt-effects-grid");
+          const mkCheck = (label: string, key: string) => {
+            const check = h("input") as HTMLInputElement;
+            check.type = "checkbox";
+            const lbl = h("label", "drawio-fmt-check");
+            lbl.appendChild(check);
+            lbl.appendChild(h("span", undefined, label));
+            check.addEventListener("change", () =>
+              this.applyStyle(key, check.checked ? "1" : null)
+            );
+            grid.appendChild(lbl);
+            return check;
+          };
+          this.roundedCheck = mkCheck(
+            t("format.rounded"),
+            this.MxConstants.STYLE_ROUNDED
           );
+          this.sketchCheck = mkCheck(t("format.sketch"), "sketch");
+          this.glassCheck = mkCheck(
+            t("format.glass"),
+            this.MxConstants.STYLE_GLASS
+          );
+          this.shadowCheck = mkCheck(
+            t("format.shadow"),
+            this.MxConstants.STYLE_SHADOW
+          );
+          body.appendChild(grid);
         },
-        false
+        true
       )
     );
 
@@ -478,21 +557,6 @@ export class FormatPanel {
     );
     bcRow.appendChild(this.textBorderColor);
     pane.appendChild(bcRow);
-
-    const shRow = h("div", "drawio-fmt-row");
-    this.shadowCheck = h("input") as HTMLInputElement;
-    this.shadowCheck.type = "checkbox";
-    const shLbl = h("label", "drawio-fmt-check");
-    shLbl.appendChild(this.shadowCheck);
-    shLbl.appendChild(h("span", undefined, t("format.shadow")));
-    this.shadowCheck.addEventListener("change", () =>
-      this.applyStyle(
-        this.MxConstants.STYLE_SHADOW,
-        this.shadowCheck.checked ? "1" : null
-      )
-    );
-    shRow.appendChild(shLbl);
-    pane.appendChild(shRow);
 
     pane.appendChild(h("div", "drawio-fmt-divider"));
 
@@ -789,6 +853,85 @@ export class FormatPanel {
     return wrap;
   }
 
+  private lineStyleField(
+    opts: Array<{ v: string; dash: string | null }>,
+    value: string,
+    onChange: (v: string) => void
+  ): HTMLElement {
+    const wrap = h("div", "drawio-fmt-linestyle");
+    const trigger = h("div", "drawio-fmt-linestyle-trigger");
+
+    const renderSvg = (dash: string | null) => {
+      const dashAttr = dash ? ` stroke-dasharray="${dash}"` : "";
+      return `<svg viewBox="0 0 120 20" width="100%" height="20" preserveAspectRatio="none"><line x1="0" y1="10" x2="120" y2="10" stroke="currentColor" stroke-width="2"${dashAttr}/></svg>`;
+    };
+
+    const updateTrigger = (v: string) => {
+      const opt = opts.find((o) => o.v === v) || opts[0];
+      trigger.innerHTML = renderSvg(opt.dash);
+    };
+
+    updateTrigger(value);
+
+    const menu = h("div", "drawio-fmt-linestyle-menu");
+    opts.forEach((opt) => {
+      const item = h(
+        "div",
+        "drawio-fmt-linestyle-item" + (opt.v === value ? " active" : "")
+      ) as HTMLElement;
+      item.dataset.value = opt.v;
+      item.innerHTML = renderSvg(opt.dash);
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onChange(opt.v);
+        updateTrigger(opt.v);
+        menu.querySelectorAll(".drawio-fmt-linestyle-item").forEach((el) =>
+          el.classList.remove("active")
+        );
+        item.classList.add("active");
+        menu.classList.remove("open");
+      });
+      menu.appendChild(item);
+    });
+
+    const closeMenu = (e: Event) => {
+      if (!wrap.contains(e.target as Node)) {
+        menu.classList.remove("open");
+        document.removeEventListener("click", closeMenu);
+      }
+    };
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu.classList.contains("open")) {
+        menu.classList.remove("open");
+        document.removeEventListener("click", closeMenu);
+        return;
+      }
+      const rect = trigger.getBoundingClientRect();
+      menu.style.top = `${rect.bottom + 2}px`;
+      menu.style.left = `${rect.left}px`;
+      menu.style.width = `${rect.width}px`;
+      menu.classList.add("open");
+      document.addEventListener("click", closeMenu);
+    });
+
+    (wrap as any)._setValue = (v: string) => {
+      updateTrigger(v);
+      menu.querySelectorAll(".drawio-fmt-linestyle-item").forEach((el) =>
+        el.classList.remove("active")
+      );
+      const item = menu.querySelector(
+        `.drawio-fmt-linestyle-item[data-value="${v}"]`
+      );
+      item?.classList.add("active");
+    };
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    return wrap;
+  }
+
   private toggleBtn(
     text: string,
     cls: string,
@@ -944,15 +1087,39 @@ export class FormatPanel {
     const fill = get(this.MxConstants.STYLE_FILLCOLOR, "none");
     this.fillCheck.checked = fill !== "none" && fill != null;
     this.setColorBlock(this.fillColor, this.toHex(fill));
+    const gradient = get(this.MxConstants.STYLE_GRADIENTCOLOR, "none");
+    const hasGradient = gradient !== "none" && gradient != null;
+    this.gradientCheck.checked = hasGradient;
+    this.gradientDirection.disabled = !hasGradient;
+    (this.gradientColor as any)._input.disabled = !hasGradient;
+    this.gradientDirection.value = get(
+      this.MxConstants.STYLE_GRADIENT_DIRECTION,
+      this.MxConstants.DIRECTION_SOUTH
+    );
+    this.setColorBlock(this.gradientColor, this.toHex(gradient));
     const stroke = get(this.MxConstants.STYLE_STROKECOLOR, "none");
     this.strokeCheck.checked = stroke !== "none" && stroke != null;
     this.setColorBlock(this.strokeColor, this.toHex(stroke));
     const dashed = get(this.MxConstants.STYLE_DASHED, null);
-    this.lineType.value = dashed ? "dashed" : "solid";
+    const dashPattern = get(this.MxConstants.STYLE_DASH_PATTERN, null);
+    let lineValue = "solid";
+    if (dashed === "1") {
+      if (dashPattern === "1 3") lineValue = "dotted";
+      else if (dashPattern === "6 2 1 2") lineValue = "dashDot";
+      else if (dashPattern === "6 2 1 2 1 2") lineValue = "dashDotDot";
+      else lineValue = "dashed";
+    }
+    (this.lineType as any)._setValue?.(lineValue);
     const sw = get(this.MxConstants.STYLE_STROKEWIDTH, "1");
     this.setNumber(this.strokeWidth, sw);
     const op = get(this.MxConstants.STYLE_OPACITY, "100");
     this.setNumber(this.styleOpacity, op);
+    this.roundedCheck.checked =
+      get(this.MxConstants.STYLE_ROUNDED, null) === "1";
+    this.sketchCheck.checked = get("sketch", null) === "1";
+    this.glassCheck.checked = get(this.MxConstants.STYLE_GLASS, null) === "1";
+    this.shadowCheck.checked =
+      get(this.MxConstants.STYLE_SHADOW, null) === "1";
 
     // 文本 Tab
     const ff = get(this.MxConstants.STYLE_FONTFAMILY, "Helvetica");
@@ -977,7 +1144,6 @@ export class FormatPanel {
     this.setColorBlock(this.fontColor, this.toHex(get(this.MxConstants.STYLE_FONTCOLOR, "#000000")));
     this.setColorBlock(this.textBgColor, this.toHex(get(this.MxConstants.STYLE_LABEL_BACKGROUNDCOLOR, "none")));
     this.setColorBlock(this.textBorderColor, this.toHex(get(this.MxConstants.STYLE_LABEL_BORDERCOLOR, "none")));
-    this.shadowCheck.checked = get(this.MxConstants.STYLE_SHADOW, null) === "1";
     this.wrapCheck.checked = get(this.MxConstants.STYLE_WHITE_SPACE, null) === this.MxConstants.WORD_WRAP;
     this.htmlCheck.checked = get(this.MxConstants.STYLE_HTML, null) === "1";
     this.setNumber(this.textOpacity, get(this.MxConstants.STYLE_TEXT_OPACITY, "100"));
