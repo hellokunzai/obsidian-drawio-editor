@@ -55,6 +55,7 @@ export class FormatPanel {
   private currentStyle: any = {};
   private MxUtils: any;
   private MxConstants: any;
+  private bottomActions!: HTMLElement;
 
   // 样式 Tab
   private styleGrid!: HTMLElement;
@@ -154,6 +155,8 @@ export class FormatPanel {
         this.root
           .querySelector(`.drawio-fmt-tabpane[data-pane="${def.id}"]`)
           ?.classList.add("active");
+        this.bottomActions.style.display =
+          def.id === "style" ? "flex" : "none";
       });
       tabs.appendChild(tab);
     }
@@ -166,8 +169,9 @@ export class FormatPanel {
     body.appendChild(this.buildArrangePane());
     this.root.appendChild(body);
 
-    // 底部按钮
+    // 底部按钮（仅在「样式」Tab 显示）
     const bottom = h("div", "drawio-fmt-bottom");
+    this.bottomActions = bottom;
     const editBtn = h("button", "drawio-fmt-bottom-btn", t("format.edit"));
     editBtn.addEventListener("click", () => {
       if (this.currentCells.length > 0) {
