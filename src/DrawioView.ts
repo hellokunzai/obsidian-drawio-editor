@@ -105,6 +105,11 @@ export class DrawioView extends FileView {
     container.empty();
     container.addClass("drawio-editor-container");
 
+    // 顶部工具栏：横跨整个视图宽度（对齐 draw.io 顶部菜单栏的位置）。
+    // 之前它挂在画布区里，导致形状面板和它挤在同一行、把顶部那一条挡住，
+    // 现在把工具栏提到最上面独占一行，形状面板从它下方开始。
+    this.buildToolbar(container);
+
     const wrapper = container.createDiv({ cls: "drawio-wrapper" });
 
     // Palette sidebar（宽度读取设置，可用右缘把手拖拽调整）
@@ -119,7 +124,6 @@ export class DrawioView extends FileView {
     // Main area（横向：左侧画布区 + 右侧格式面板）
     const mainArea = wrapper.createDiv({ cls: "drawio-main" });
     const canvasArea = mainArea.createDiv({ cls: "drawio-canvas-area" });
-    this.buildToolbar(canvasArea);
     this.graphContainer = canvasArea.createDiv({ cls: "drawio-graph-container" });
 
     // 格式面板（默认折叠隐藏，选中图形时滑出）

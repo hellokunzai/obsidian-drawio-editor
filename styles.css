@@ -11,7 +11,9 @@
 .drawio-wrapper {
   display: flex;
   flex-direction: row;
-  height: 100%;
+  /* 顶部工具栏独占一行后，这里改为吃掉剩余高度（原来写 height:100% 会顶出容器） */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 

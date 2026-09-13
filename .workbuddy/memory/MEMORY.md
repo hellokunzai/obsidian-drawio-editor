@@ -28,7 +28,12 @@
 ## 工作习惯
 - 改完代码必须跑 tsc + 构建，并同步升三处版本号（manifest.json / package.json / versions.json）。
 
+## 视图 DOM 结构（v0.11.1 起）
+- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container`，右侧 `.drawio-format-panel`）。
+- 改布局时注意：`.drawio-wrapper` 不能再写 `height:100%`，否则会顶出容器。
+
 ## 近期变更
+- v0.11.1（布局：工具栏提到顶部整宽）：工具栏从 `.drawio-canvas-area` 提到视图根容器下（横跨整宽、独占顶部一行），形状面板下移到工具栏之下——用户反馈「形状栏不要覆盖顶部菜单栏」；`.drawio-wrapper` 由 `height:100%` 改 `flex:1 1 auto; min-height:0`。
 - v0.11.0（右键上下文菜单 + 便签本 + 框选坐标修正）：画布图形/连线右键出 draw.io 风格自绘 DOM 菜单（挂 body，`position:fixed`，视口内钳制），12 项动作：删除/剪切/复制/创建副本/粘贴/锁定解锁/设为默认样式/移至最前|最后|上移|下移一层/编辑样式|数据|链接|连接点/添加到便签本；菜单项操作对象是 **当前选中集**（`getSelectionCells`），仅编辑类动作用右键命中的单个 cell。新增 `src/TextEditModal.ts`（可复用弹窗）与 `setupCanvasShortcuts`（Ctrl+C/X/V/D + Del/Backspace，`container.matches(":hover")` 守卫）。便签本存 `settings.scratchpad`，面板底部新增分组（仅非空时显示，`filterPalette` 跳过 `data-category-key="__scratch"`），每项悬停出「×」。**删除了原型里未实现的 Ctrl+E/Ctrl+M 快捷键文案**（Ctrl+E 会撞 Obsidian 编辑/阅读模式切换）。⚠️ 关键坑：`getCellAt` 要的是容器像素，见上文「mxGraph 坐标语义」。
 - v0.8.4（真修·isActive 致命 bug）：**`mouseUp` 先调 `isActive()` 再决定是否调 `execute()`**——覆写 `isActive` 时如果返回 false 会直接阻断选择！这是 v0.8.0~v0.8.3 三版"框选不选中"的统一根因。修法：`isActive` 始终返回 true（淡出判定结果存 `this._shouldFade`），`reset` 覆写里临时设 `this.fadeOut=_shouldFade` 再调原始 reset。⚠️ **覆写 mxRubberband 的 isActive 时绝对不能返回 false**，否则 execute 永远不被调用。
 - v0.8.3（相交即选中）：框选判定由"严格包含"改为"相交即选中"（用户反馈离形状近/只框到一半时不选中）。`execute`/`repaint` 改用自实现 `collectIntersecting(rect)`：遍历默认父节点子树，对每个可见 cell 取 state（旋转用 `mxUtils.getBoundingBox` 修正），`mxUtils.intersects(rect, bb)` 判定相交即选中（形状+连线都覆盖），`isCellSelectable` 过滤后 `setSelectionCells`。⚠️ 该 mxClient 版本**无** `getCellsWithinArea`，其 `getCells` 第 7 参数虽是相交矩形但**只处理顶点(形状)**、不含连线，故自实现。详见 2026-09-12 日志。
