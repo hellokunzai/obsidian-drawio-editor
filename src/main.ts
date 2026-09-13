@@ -144,6 +144,14 @@ export default class DrawioPlugin extends Plugin {
       MAX_PALETTE_WIDTH,
       Math.max(MIN_PALETTE_WIDTH, Math.round(this.settings.paletteWidth))
     );
+    // 便签本必须是数组，且过滤掉结构不合法的项，避免脏数据让面板渲染崩掉
+    if (!Array.isArray(this.settings.scratchpad)) {
+      this.settings.scratchpad = [];
+    } else {
+      this.settings.scratchpad = this.settings.scratchpad.filter(
+        (s) => s && typeof s === "object" && typeof s.style === "string"
+      );
+    }
   }
 
   async saveSettings(): Promise<void> {

@@ -17,6 +17,8 @@ import {
 } from "./mxgraph-setup";
 import { getAllShapeCategories, getShapeLabel, ShapeDef } from "./shapes";
 import { loadAllStencils } from "./stencil-loader";
+import { ScratchShape } from "./settings";
+import { TextEditModal } from "./TextEditModal";
 import { MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH } from "./settings";
 import { inflate } from "pako";
 import { t, tOr } from "./i18n";
@@ -48,6 +50,22 @@ export class DrawioView extends FileView {
   private suppressPaletteClick = false;
   private formatPanelEl: HTMLElement | null = null;
   private formatPanel: FormatPanel | null = null;
+
+  /** 右键上下文菜单元素（挂在 document.body，position: fixed） */
+  private ctxMenuEl: HTMLElement | null = null;
+  /** 右键菜单当前作用的目标单元格（右键时已确保其为选中状态） */
+  private ctxTargetCell: any = null;
+  /** 菜单外的点击 / 滚动 / Esc 关闭监听 */
+  private ctxOutsidePointer: ((e: PointerEvent) => void) | null = null;
+  private ctxOutsideKey: ((e: KeyboardEvent) => void) | null = null;
+  private ctxOutsideWheel: ((e: Event) => void) | null = null;
+  /** 内部剪贴板：剪切 / 复制暂存的克隆单元格 */
+  private clipboardCells: any[] | null = null;
+  /** 连续粘贴的层数，用于逐次递增偏移，避免多次粘贴完全重叠 */
+  private clipboardPasteCount = 0;
+  /** 便签本分组在形状面板中的引用，便于新增后原地刷新 */
+  private scratchSectionEl: HTMLElement | null = null;
+  private scratchGridEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: DrawioPlugin) {
     super(leaf);
@@ -181,6 +199,7 @@ export class DrawioView extends FileView {
 
     for (const category of categories) {
       const section = parent.createDiv({ cls: "drawio-palette-section" });
+      section.dataset.categoryKey = category.key;
       const header = section.createEl("button", { cls: "drawio-palette-header", attr: { type: "button" } });
       header.createEl("span", {
         cls: "drawio-palette-arrow",
@@ -219,6 +238,121 @@ export class DrawioView extends FileView {
         });
       }
     }
+
+    // 便签本分组：从右键菜单「添加到便签本」收集的图形，可点击/拖拽回画布复用
+    this.buildScratchSection(parent);
+  }
+
+  /** 在形状面板底部构建「便签本」分组（仅在已有收藏时显示） */
+  private buildScratchSection(parent: HTMLElement): void {
+    const items = this.plugin.settings.scratchpad;
+    if (!items || items.length === 0) return;
+
+    const section = parent.createDiv({
+      cls: "drawio-palette-section drawio-palette-scratch",
+    });
+    section.dataset.categoryKey = "__scratch";
+    const header = section.createEl("button", {
+      cls: "drawio-palette-header",
+      attr: { type: "button" },
+    });
+    header.createEl("span", { cls: "drawio-palette-arrow", text: "▾" });
+    header.createEl("span", {
+      cls: "drawio-palette-title",
+      text: t("ctx.scratchpad"),
+    });
+    header.addEventListener("click", () => {
+      if (section.hasClass("drawio-palette-section-collapsed")) {
+        section.removeClass("drawio-palette-section-collapsed");
+      } else {
+        section.addClass("drawio-palette-section-collapsed");
+      }
+    });
+
+    const grid = section.createDiv({ cls: "drawio-palette-grid" });
+    this.scratchSectionEl = section;
+    this.scratchGridEl = grid;
+    this.fillScratchGrid();
+  }
+
+  /** 把当前 settings.scratchpad 渲染进便签本网格（清空后重建） */
+  private fillScratchGrid(): void {
+    const grid = this.scratchGridEl;
+    if (!grid) return;
+    grid.empty();
+    const items = this.plugin.settings.scratchpad;
+    if (!items || items.length === 0) {
+      // 清空后若已无收藏，隐藏整个分组
+      this.scratchSectionEl?.classList.add("drawio-hidden");
+      return;
+    }
+    this.scratchSectionEl?.classList.remove("drawio-hidden");
+
+    items.forEach((def, idx) => {
+      const shapeDef = this.scratchToShapeDef(def, idx);
+      const item = grid.createDiv({
+        cls: "drawio-palette-item drawio-palette-scratch-item",
+      });
+      item.setAttribute("data-shape-id", shapeDef.id);
+      item.setAttribute("title", shapeDef.name);
+      item.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shapeDef.icon}"/></svg>`;
+
+      this.makeShapeDraggable(item, shapeDef);
+
+      item.addEventListener("click", () => {
+        if (this.suppressPaletteClick) {
+          this.suppressPaletteClick = false;
+          return;
+        }
+        this.addShapeAtCenter(shapeDef);
+      });
+
+      // 悬停显示移除按钮，避免便签本无限累积
+      const del = item.createEl("button", {
+        cls: "drawio-palette-scratch-del",
+        text: "×",
+        attr: { type: "button", "aria-label": t("ctx.scratchpadRemove") },
+      });
+      // 按住移除按钮不应触发面板拖拽（pointerdown 会冒泡到 item 上的拖拽监听）
+      del.addEventListener("pointerdown", (e) => e.stopPropagation());
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.removeFromScratchpad(idx);
+      });
+    });
+  }
+
+  /** 从便签本移除一项并持久化 + 刷新面板 */
+  private removeFromScratchpad(index: number): void {
+    const list = this.plugin.settings.scratchpad;
+    if (index < 0 || index >= list.length) return;
+    list.splice(index, 1);
+    void this.plugin.saveSettings();
+    this.rebuildScratchSection();
+  }
+
+  /** 新增 / 删除便签本后原地刷新网格（分组尚不存在时按需创建） */
+  private rebuildScratchSection(): void {
+    if (!this.scratchGridEl) {
+      if (this.paletteEl && this.plugin.settings.scratchpad.length > 0) {
+        this.buildScratchSection(this.paletteEl);
+      }
+      return;
+    }
+    this.fillScratchGrid();
+  }
+
+  /** 把持久化的 ScratchShape 转成拖拽 / 落点需要的 ShapeDef */
+  private scratchToShapeDef(def: ScratchShape, index: number): ShapeDef {
+    return {
+      id: def.isEdge ? `scratch-edge-${index}` : `scratch-${index}`,
+      name: def.value || t("ctx.scratchpad"),
+      style: def.style,
+      width: def.width,
+      height: def.height,
+      icon: def.icon,
+    };
   }
 
   /**
@@ -235,8 +369,10 @@ export class DrawioView extends FileView {
     );
     let anyMatch = false;
 
-    sections.forEach((section, i) => {
-      const category = categories[i];
+    sections.forEach((section) => {
+      const key = section.dataset.categoryKey;
+      const category = categories.find((c) => c.key === key);
+      // 便签本等非分类分组不受搜索过滤影响，直接跳过
       if (!category) return;
       let sectionHasMatch = false;
 
@@ -530,6 +666,84 @@ export class DrawioView extends FileView {
     this.applyTheme();
     this.applySettings();
     this.setupFormatPanel();
+    this.setupContextMenu();
+    this.setupCanvasShortcuts();
+  }
+
+  /**
+   * 画布键盘快捷键（对齐 draw.io）：Ctrl+C 复制、Ctrl+X 剪切、Ctrl+V 粘贴、
+   * Ctrl+D 创建副本、Del/Backspace 删除。
+   * 仅在鼠标悬停于画布、且没有在编辑图形文本 / 输入框内时接管，
+   * 避免抢掉 Obsidian 其他面板的复制粘贴与删除。
+   *
+   * 注意 mxClient 里的 mxKeyHandler 构造函数默认不绑定任何按键，
+   * 所以删除键必须在这里自己接。
+   */
+  private setupCanvasShortcuts(): void {
+    if (!this.graph || !this.graphContainer) return;
+    const graph: any = this.graph;
+    const container = this.graphContainer;
+
+    /** 是否应当由画布接管这次按键（悬停中、非文本编辑态） */
+    const shouldHandle = (e: KeyboardEvent): boolean => {
+      if (!container.matches(":hover")) return false;
+      // 正在编辑图形文本时，交给系统处理
+      if (typeof graph.isEditing === "function" && graph.isEditing()) return false;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      ) {
+        return false;
+      }
+      return true;
+    };
+
+    this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
+      // 删除键（无修饰键）
+      if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.key === "Delete" || e.key === "Backspace")
+      ) {
+        if (!shouldHandle(e)) return;
+        const cells = graph.getSelectionCells() || [];
+        if (cells.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.deleteSelected();
+        return;
+      }
+
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== "c" && key !== "x" && key !== "v" && key !== "d") return;
+      if (!shouldHandle(e)) return;
+
+      const cells = graph.getSelectionCells() || [];
+
+      if (key === "c") {
+        if (cells.length === 0) return;
+        this.copyCells(cells);
+      } else if (key === "x") {
+        if (cells.length === 0) return;
+        this.copyCells(cells);
+        graph.removeCells(cells);
+        this.markDirty();
+      } else if (key === "v") {
+        if (!this.clipboardCells || this.clipboardCells.length === 0) return;
+        this.pasteCells();
+        this.markDirty();
+      } else {
+        if (cells.length === 0) return;
+        this.duplicateCells(cells);
+        this.markDirty();
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    });
   }
 
   /**
@@ -556,6 +770,511 @@ export class DrawioView extends FileView {
   }
 
   /**
+   * 右键上下文菜单：在画布图形 / 连线上右键弹出 draw.io 风格的操作菜单。
+   * 自绘 DOM 菜单（不依赖 mxGraph 自带的 mxPopupMenu），便于完全掌控样式与交互。
+   */
+  private setupContextMenu(): void {
+    if (!this.graph || !this.graphContainer) return;
+
+    const graph: any = this.graph;
+    const MxUtils = mxUtils();
+
+    // 禁用 mxGraph 自带的右键弹出菜单，避免与我们的自定义菜单重复 / 冲突
+    if (
+      graph.popupMenuHandler &&
+      typeof graph.popupMenuHandler.setEnabled === "function"
+    ) {
+      graph.popupMenuHandler.setEnabled(false);
+    }
+
+    // 菜单元素：挂在 body 上（position: fixed），可溢出画布容器
+    if (!this.ctxMenuEl) {
+      this.ctxMenuEl = document.body.createDiv({ cls: "drawio-ctx-menu" });
+      this.ctxMenuEl.style.display = "none";
+      // 统一用事件委托处理菜单项点击
+      this.ctxMenuEl.addEventListener("click", (e: MouseEvent) => {
+        const item = (e.target as HTMLElement).closest(
+          ".drawio-ctx-item"
+        ) as HTMLElement | null;
+        if (!item || item.classList.contains("drawio-ctx-disabled")) return;
+        const action = item.dataset.action;
+        if (action) {
+          this.ctxAction(action, this.ctxTargetCell);
+        }
+      });
+    }
+
+    // 画布上的右键 → 检测单元格并弹出菜单
+    this.registerDomEvent(this.graphContainer, "contextmenu", (e: MouseEvent) => {
+      e.preventDefault();
+      if (!this.graph) return;
+
+      // 坐标语义（关键）：mxGraph 的 state.x/y 是「容器像素坐标」——
+      // updateCellState 里 state.x = scale*(translate.x + origin.x)，
+      // 所以 getCellAt 要的是容器像素（与 mxUtils.convertPoint 的结果同一空间），
+      // **不是**模型/图坐标。切勿再除 scale / 减 translate，否则缩放平移后会失准。
+      const pt = MxUtils.convertPoint(this.graphContainer, e.clientX, e.clientY);
+      const cell = this.graph.getCellAt(pt.x, pt.y);
+
+      // 空白处右键：有剪贴板内容时给出「粘贴」，否则仅抑制原生菜单
+      if (!cell) {
+        const hasClipboard = !!(
+          this.clipboardCells && this.clipboardCells.length > 0
+        );
+        if (hasClipboard) {
+          this.ctxTargetCell = null;
+          this.openCtxMenu(e.clientX, e.clientY);
+        } else {
+          this.closeCtxMenu();
+        }
+        return;
+      }
+
+      // 右键已选中的某个图形时保留多选；否则选中该图形
+      if (!this.graph.isCellSelected(cell)) {
+        this.graph.setSelectionCell(cell);
+      }
+      this.ctxTargetCell = cell;
+      this.openCtxMenu(e.clientX, e.clientY);
+    });
+  }
+
+  /** 构建并定位菜单（每次右键都按当前单元格状态重建条目） */
+  private openCtxMenu(clientX: number, clientY: number): void {
+    const menu = this.ctxMenuEl;
+    if (!menu || !this.graph) return;
+
+    const cell = this.ctxTargetCell;
+    const hasClipboard = !!(
+      this.clipboardCells && this.clipboardCells.length > 0
+    );
+
+    // 重建条目
+    menu.empty();
+
+    // 空白处右键：只给「粘贴」（与 draw.io 一致）
+    if (!cell) {
+      this.addCtxItem(menu, t("ctx.paste"), {
+        action: "paste",
+        shortcut: "Ctrl+V",
+      });
+      this.showCtxMenu(clientX, clientY);
+      return;
+    }
+
+    const MxConstants = mxConstants();
+    const locked =
+      this.graph.getCellStyle(cell)[MxConstants.STYLE_LOCKED] === "1";
+
+    this.addCtxItem(menu, t("ctx.delete"), {
+      action: "delete",
+      danger: true,
+      shortcut: "Del",
+    });
+    this.addCtxItem(menu, t("ctx.cut"), { action: "cut", shortcut: "Ctrl+X" });
+    this.addCtxItem(menu, t("ctx.copy"), { action: "copy", shortcut: "Ctrl+C" });
+    this.addCtxItem(menu, t("ctx.duplicate"), {
+      action: "duplicate",
+      shortcut: "Ctrl+D",
+    });
+    if (hasClipboard) {
+      this.addCtxItem(menu, t("ctx.paste"), {
+        action: "paste",
+        shortcut: "Ctrl+V",
+      });
+    }
+
+    this.addCtxSep(menu);
+
+    this.addCtxItem(menu, locked ? t("ctx.unlock") : t("ctx.lock"), {
+      action: "lock",
+    });
+    this.addCtxItem(menu, t("ctx.setDefault"), { action: "default" });
+
+    this.addCtxItem(menu, t("ctx.toFront"), { action: "front" });
+    this.addCtxItem(menu, t("ctx.toBack"), { action: "back" });
+    this.addCtxItem(menu, t("ctx.forward"), { action: "forward" });
+    this.addCtxItem(menu, t("ctx.backward"), { action: "backward" });
+
+    this.addCtxSep(menu);
+
+    this.addCtxItem(menu, t("ctx.editStyle"), { action: "style" });
+    this.addCtxItem(menu, t("ctx.editData"), { action: "data" });
+    this.addCtxItem(menu, t("ctx.editLink"), { action: "link" });
+    this.addCtxItem(menu, t("ctx.editPoints"), { action: "points" });
+
+    this.addCtxSep(menu);
+
+    this.addCtxItem(menu, t("ctx.addToScratchpad"), { action: "scratch" });
+
+    this.showCtxMenu(clientX, clientY);
+  }
+
+  /** 显示菜单：量尺寸做视口内钳制，并注册「点击空白 / 滚动 / Esc」关闭监听 */
+  private showCtxMenu(clientX: number, clientY: number): void {
+    const menu = this.ctxMenuEl;
+    if (!menu) return;
+
+    menu.style.display = "block";
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    let x = clientX;
+    let y = clientY;
+    if (x + mw > window.innerWidth) x = window.innerWidth - mw - 4;
+    if (y + mh > window.innerHeight) y = window.innerHeight - mh - 4;
+    menu.style.left = `${Math.max(4, x)}px`;
+    menu.style.top = `${Math.max(4, y)}px`;
+
+    // 先清掉上一轮可能残留的监听，避免重复注册
+    this.removeCtxOutsideListeners();
+
+    this.ctxOutsidePointer = (ev: PointerEvent) => {
+      if (!this.ctxMenuEl) return;
+      if (!this.ctxMenuEl.contains(ev.target as Node)) this.closeCtxMenu();
+    };
+    this.ctxOutsideKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") this.closeCtxMenu();
+    };
+    this.ctxOutsideWheel = () => this.closeCtxMenu();
+    document.addEventListener("pointerdown", this.ctxOutsidePointer, true);
+    document.addEventListener("keydown", this.ctxOutsideKey);
+    this.graphContainer?.addEventListener("wheel", this.ctxOutsideWheel, true);
+  }
+
+  /** 注销菜单外的关闭监听 */
+  private removeCtxOutsideListeners(): void {
+    if (this.ctxOutsidePointer) {
+      document.removeEventListener("pointerdown", this.ctxOutsidePointer, true);
+      this.ctxOutsidePointer = null;
+    }
+    if (this.ctxOutsideKey) {
+      document.removeEventListener("keydown", this.ctxOutsideKey);
+      this.ctxOutsideKey = null;
+    }
+    if (this.ctxOutsideWheel && this.graphContainer) {
+      this.graphContainer.removeEventListener(
+        "wheel",
+        this.ctxOutsideWheel,
+        true
+      );
+    }
+    this.ctxOutsideWheel = null;
+  }
+
+  /** 关闭菜单并注销监听 */
+  private closeCtxMenu(): void {
+    if (this.ctxMenuEl) this.ctxMenuEl.style.display = "none";
+    this.ctxTargetCell = null;
+    this.removeCtxOutsideListeners();
+  }
+
+  private addCtxItem(
+    menu: HTMLElement,
+    label: string,
+    opts: {
+      action?: string;
+      danger?: boolean;
+      shortcut?: string;
+      disabled?: boolean;
+    }
+  ): void {
+    const item = menu.createDiv({
+      cls:
+        "drawio-ctx-item" +
+        (opts.danger ? " drawio-ctx-danger" : "") +
+        (opts.disabled ? " drawio-ctx-disabled" : ""),
+    });
+    item.createSpan({ cls: "drawio-ctx-label", text: label });
+    if (opts.shortcut) {
+      item.createSpan({ cls: "drawio-ctx-shortcut", text: opts.shortcut });
+    }
+    if (opts.action && !opts.disabled) item.dataset.action = opts.action;
+  }
+
+  private addCtxSep(menu: HTMLElement): void {
+    menu.createDiv({ cls: "drawio-ctx-sep" });
+  }
+
+  /** 菜单项动作分发 */
+  private ctxAction(action: string, cell: any): void {
+    if (!this.graph) return;
+    const graph: any = this.graph;
+    const cells = graph.getSelectionCells();
+
+    // 需要具体目标单元格的动作：空白处右键（只有粘贴）时不可达，做防御性拦截
+    if (
+      !cell &&
+      ["default", "style", "data", "link", "points", "scratch"].includes(action)
+    ) {
+      this.closeCtxMenu();
+      return;
+    }
+
+    switch (action) {
+      case "delete":
+        graph.removeCells(cells);
+        break;
+      case "cut":
+        this.copyCells(cells);
+        graph.removeCells(cells);
+        break;
+      case "copy":
+        this.copyCells(cells);
+        break;
+      case "paste":
+        this.pasteCells();
+        break;
+      case "duplicate":
+        this.duplicateCells(cells);
+        break;
+      case "lock":
+        this.toggleLock(cells);
+        break;
+      case "default":
+        this.setDefaultStyle(cell);
+        break;
+      case "front":
+        graph.bringToFront(cells);
+        break;
+      case "back":
+        graph.sendToBack(cells);
+        break;
+      case "forward":
+        graph.orderCells(false, cells);
+        break;
+      case "backward":
+        graph.orderCells(true, cells);
+        break;
+      case "style":
+        this.closeCtxMenu();
+        this.editStyle(cell);
+        return; // 弹窗自带关闭菜单
+      case "data":
+        this.closeCtxMenu();
+        this.editData(cell);
+        return;
+      case "link":
+        this.closeCtxMenu();
+        this.editLink(cell);
+        return;
+      case "points":
+        this.closeCtxMenu();
+        this.editPoints(cell);
+        return;
+      case "scratch":
+        this.addToScratchpad(cell);
+        break;
+      default:
+        this.closeCtxMenu();
+        return;
+    }
+
+    if (action !== "copy" && action !== "default") this.markDirty();
+    this.closeCtxMenu();
+  }
+
+  /** 复制 / 剪切：把选中单元格克隆进内部剪贴板（同时重置粘贴偏移计数） */
+  private copyCells(cells: any[]): void {
+    if (!this.graph || cells.length === 0) return;
+    this.clipboardCells = this.graph.cloneCells(cells);
+    this.clipboardPasteCount = 0;
+  }
+
+  /**
+   * 创建副本：用 mxGraph 自己的 moveCells(clone=true) 完成「克隆 + 平移 + 加入」。
+   * 相比手工 cloneCells + addCells，它能正确处理连线的终点引用、组合子节点与
+   * 边的控制点，落点也带一点偏移不会与原图形完全重叠。
+   */
+  private duplicateCells(cells: any[]): void {
+    if (!this.graph || cells.length === 0) return;
+    const graph: any = this.graph;
+    const clones = graph.moveCells(
+      cells,
+      10,
+      10,
+      true,
+      graph.getDefaultParent()
+    );
+    if (clones && clones.length > 0) graph.setSelectionCells(clones);
+  }
+
+  /** 粘贴：把剪贴板内容克隆到画布，逐次递增偏移，避免多次粘贴完全重叠 */
+  private pasteCells(): void {
+    if (!this.graph || !this.clipboardCells || this.clipboardCells.length === 0) {
+      return;
+    }
+    const graph: any = this.graph;
+    this.clipboardPasteCount += 1;
+    const off = 10 * this.clipboardPasteCount;
+    const pasted = graph.moveCells(
+      this.clipboardCells,
+      off,
+      off,
+      true,
+      graph.getDefaultParent()
+    );
+    if (pasted && pasted.length > 0) graph.setSelectionCells(pasted);
+  }
+
+  private toggleLock(cells: any[]): void {
+    if (!this.graph || cells.length === 0) return;
+    const MxConstants = mxConstants();
+    const model = this.graph.getModel();
+    const key = MxConstants.STYLE_LOCKED;
+    const allLocked = cells.every(
+      (c: any) => this.graph.getCellStyle(c)[key] === "1"
+    );
+    const val = allLocked ? null : "1";
+    model.beginUpdate();
+    try {
+      this.graph.setCellStyles(key, val, cells);
+    } finally {
+      model.endUpdate();
+    }
+  }
+
+  /** 把选中图形的样式设为新建图形的默认样式（对齐 draw.io 语义：整体替换） */
+  private setDefaultStyle(cell: any): void {
+    if (!this.graph) return;
+    const MxUtils = mxUtils();
+    const model = this.graph.getModel();
+    const sheet = this.graph.getStylesheet();
+    const ownStyle = model.getStyle(cell) || "";
+    const parsed = MxUtils.parseStyle(ownStyle);
+    const target = model.isEdge(cell)
+      ? sheet.getDefaultEdgeStyle()
+      : sheet.getDefaultVertexStyle();
+    for (const k of Object.keys(target)) delete target[k];
+    Object.assign(target, parsed);
+    this.graph.refresh();
+  }
+
+  private editStyle(cell: any): void {
+    if (!this.graph) return;
+    const model = this.graph.getModel();
+    const cur = model.getStyle(cell) || "";
+    new TextEditModal(this.app, {
+      title: t("ctx.modal.styleTitle"),
+      label: t("ctx.modal.styleLabel"),
+      value: cur,
+      multiline: true,
+      onSave: (v: string) => {
+        model.beginUpdate();
+        try {
+          this.graph.setCellStyle(v, [cell]);
+        } finally {
+          model.endUpdate();
+        }
+        this.markDirty();
+      },
+    }).open();
+  }
+
+  private editLink(cell: any): void {
+    if (!this.graph) return;
+    const MxConstants = mxConstants();
+    const cur = this.graph.getCellStyle(cell)[MxConstants.STYLE_URL] || "";
+    new TextEditModal(this.app, {
+      title: t("ctx.modal.linkTitle"),
+      label: t("ctx.modal.linkLabel"),
+      value: cur,
+      multiline: false,
+      onSave: (v: string) => {
+        this.graph.setCellStyles(
+          MxConstants.STYLE_URL,
+          v.trim() || null,
+          [cell]
+        );
+        this.markDirty();
+      },
+    }).open();
+  }
+
+  private editData(cell: any): void {
+    if (!this.graph) return;
+    const model = this.graph.getModel();
+    const cur = model.getValue(cell);
+    let curStr = "";
+    if (cur != null) {
+      curStr =
+        typeof cur === "string"
+          ? cur
+          : (cur as any).outerHTML
+          ? (cur as any).outerHTML
+          : String(cur);
+    }
+    new TextEditModal(this.app, {
+      title: t("ctx.modal.dataTitle"),
+      label: t("ctx.modal.dataLabel"),
+      value: curStr,
+      multiline: true,
+      onSave: (v: string) => {
+        model.beginUpdate();
+        try {
+          model.setValue(cell, v);
+        } finally {
+          model.endUpdate();
+        }
+        this.markDirty();
+      },
+    }).open();
+  }
+
+  private editPoints(cell: any): void {
+    if (!this.graph) return;
+    const MxConstants = mxConstants();
+    const cur = this.graph.getCellStyle(cell)[MxConstants.STYLE_POINTS] || "";
+    new TextEditModal(this.app, {
+      title: t("ctx.modal.pointsTitle"),
+      label: t("ctx.modal.pointsLabel"),
+      value: cur,
+      multiline: false,
+      placeholder: "0.5,0;1,0.5",
+      hint: t("ctx.modal.pointsHint"),
+      onSave: (v: string) => {
+        this.graph.setCellStyles(
+          MxConstants.STYLE_POINTS,
+          v.trim() || null,
+          [cell]
+        );
+        this.graph.refresh();
+        this.markDirty();
+      },
+    }).open();
+  }
+
+  /** 把当前图形存入便签本（持久化），并刷新形状面板的便签本分组 */
+  private addToScratchpad(cell: any): void {
+    if (!this.graph) return;
+    const model = this.graph.getModel();
+    const style = model.getStyle(cell) || "";
+    const value = model.getValue(cell);
+    let valueStr = "";
+    if (value != null) {
+      valueStr =
+        typeof value === "string"
+          ? value
+          : (value as any).outerHTML
+          ? (value as any).outerHTML
+          : String(value);
+    }
+    const geo = model.getGeometry(cell);
+    const isEdge = model.isEdge(cell);
+    const def: ScratchShape = {
+      style,
+      value: valueStr,
+      width: geo ? geo.width : isEdge ? 100 : 120,
+      height: geo ? geo.height : isEdge ? 60 : 60,
+      icon: isEdge ? "M4,16 L4,8 L20,8 L20,2" : "M3,3 L21,3 L21,13 L3,13 Z",
+      isEdge,
+    };
+    this.plugin.settings.scratchpad.push(def);
+    void this.plugin.saveSettings();
+    new Notice(t("notice.addedToScratchpad"));
+    this.rebuildScratchSection();
+  }
+
+  /**
    * 画布导航交互（对齐 draw.io 习惯）：
    * - Ctrl+滚轮：以鼠标位置为锚点缩放（触摸板双指缩放派发的 wheel 自带 ctrlKey，同样生效）
    * - Ctrl+左键拖拽（空白处）/ 空格+左键拖拽 / 中键拖拽 / 右键拖拽 / Ctrl+Shift+拖拽：平移画布
@@ -575,11 +1294,15 @@ export class DrawioView extends FileView {
 
     // 补充中键拖拽、Ctrl+左键拖拽（仅空白处）平移，保留原生触发键。
     // Ctrl+左键限定空白处：按在图形上时保留 mxGraph 默认的 Ctrl 多选/拖动图形
-    const originalIsPanningTrigger = panningHandler.isPanningTrigger;
     panningHandler.isPanningTrigger = function (me: any) {
       const evt = me.getEvent();
+      // 右键（弹出菜单触发键）整体让给上下文菜单，不参与平移，
+      // 与 draw.io 一致：右键出菜单、平移改由中键 / Ctrl+左键(空白) / 空格 / Ctrl+Shift 承担
       return (
-        originalIsPanningTrigger.apply(this, arguments) ||
+        (this.useLeftButtonForPanning &&
+          me.getState() == null &&
+          MxEvent.isLeftMouseButton(evt)) ||
+        (MxEvent.isControlDown(evt) && MxEvent.isShiftDown(evt)) ||
         MxEvent.isMiddleMouseButton(evt) ||
         (MxEvent.isControlDown(evt) &&
           MxEvent.isLeftMouseButton(evt) &&
@@ -633,10 +1356,19 @@ export class DrawioView extends FileView {
   /**
    * 左键框选（对齐 draw.io 的选中矩形效果）。
    *
-   * 坐标约定（来自 mxRubberband 源码）：repaint 里 div 的 left/top 直接等于
-   * this.x / this.y，这两个值是「容器本地像素坐标」——已扣除容器滚动与 panDx，
-   * 但还没有除 scale。而 getCells 要的是「图坐标」。所以这里在 execute / repaint
-   * 里统一反投影：graphX = px / scale - translate.x。
+   * ⚠️ 坐标语义（v0.11.0 修正，此前理解有误）：`mxRubberband` 的
+   * this.x / this.y / width / height 是**容器像素坐标**（repaint 里
+   * `div.style.left = this.x` 直接用它）。而 mxGraph 的
+   * `mxCellState.x/y` 同样落在容器像素空间——`updateCellState` 里
+   * `state.x = scale * (translate.x + origin.x)`。两边同空间，
+   * 所以 `mxUtils.intersects(rect, state)` 必须**直接用像素矩形**，
+   * 不能再做 `px / scale - translate` 的「反投影」。
+   *
+   * 佐证：mxGraph 自带的 `mxRubberband.execute` → `graph.selectRegion(rect)`
+   * → `graph.getCells(rect.x, rect.y, rect.width, rect.height)`，
+   * 全程把 this.x 原样透传，且 `getCells` 内部直接拿 `state.x` 与入参比较。
+   * 之前的反投影在 translate/scale 为默认值(0/1)时恰好是恒等变换才没暴露问题，
+   * 一旦点过「适应画布」或缩放平移就会整体错位、框选失效。
    *
    * 判定语义：**相交即选中**（只要框选矩形碰到/压住图形/连线就选中），而非
    * draw.io 默认的「完全包含才选中」。否则鼠标从形状旁边起框、只框到一半时，
@@ -653,26 +1385,15 @@ export class DrawioView extends FileView {
 
     const rubberband = new MxRubberband(graph);
 
-    // 容器本地像素坐标 → 图坐标
-    const pxToGraph = (px: number, py: number) => {
-      const view = graph.getView();
-      const s = view.scale || 1;
-      const t = view.translate || { x: 0, y: 0 };
-      return { x: px / s - t.x, y: py / s - t.y };
-    };
-
-    // 由 rubberband 当前的 this.x/width（容器像素）推出图坐标矩形
+    // 由 rubberband 当前的 this.x/width 直接得到容器像素矩形（无需任何换算）
     const currentRegion = () => {
-      const tl = pxToGraph(rubberband.x, rubberband.y);
-      const br = pxToGraph(
-        rubberband.x + rubberband.width,
-        rubberband.y + rubberband.height
-      );
+      const x = Math.min(rubberband.x, rubberband.x + rubberband.width);
+      const y = Math.min(rubberband.y, rubberband.y + rubberband.height);
       return new MxRectangle(
-        Math.min(tl.x, br.x),
-        Math.min(tl.y, br.y),
-        Math.abs(br.x - tl.x),
-        Math.abs(br.y - tl.y)
+        x,
+        y,
+        Math.abs(rubberband.width),
+        Math.abs(rubberband.height)
       );
     };
 
@@ -681,7 +1402,6 @@ export class DrawioView extends FileView {
     // 这样只要框选矩形碰到图形就会被选中。
     const collectIntersecting = (rect: any): any[] => {
       const parent = graph.getDefaultParent();
-      console.log('[RB collect] parent=', parent?.id, 'childCount=', parent ? graph.getModel().getChildCount(parent) : 'N/A');
       const result: any[] = [];
       const visit = (cell: any) => {
         const model = graph.getModel();
@@ -694,39 +1414,21 @@ export class DrawioView extends FileView {
             const rot =
               MxUtils.getValue(state.style, MxConstants.STYLE_ROTATION) || 0;
             if (rot !== 0) bb = MxUtils.getBoundingBox(state, rot);
-            const hits = MxUtils.intersects(rect, bb);
-            console.log('[RB collect] child:', child?.id || child?.value, 'state=',
-              state ? `${state.x},${state.y} ${state.width}x${state.height}` : 'null',
-              'intersects=', hits);
-            if (hits) result.push(child);
-          } else {
-            console.log('[RB collect] child:', child?.id || child?.value,
-              'skipped: state=', !!state, 'visible=', graph.isCellVisible(child));
+            if (MxUtils.intersects(rect, bb)) result.push(child);
           }
           visit(child);
         }
       };
       if (parent) visit(parent);
-      else console.log('[RB collect] WARNING: parent is null!');
       return result;
     };
 
     // mouseUp：选中所有与框选矩形相交的图形/连线（替换当前选择）
     rubberband.execute = function (evt?: any) {
-      console.log('[RB execute] start, this.x=', this.x, 'this.y=', this.y, 'this.w=', this.width, 'this.h=', this.height);
-      if (this.x == null || this.y == null) { console.log('[RB execute] early return: x/y null'); return; }
-      const rect = currentRegion();
-      console.log('[RB execute] region:', rect?.x, rect?.y, rect?.width, rect?.height);
-      const raw = collectIntersecting(rect);
-      console.log('[RB execute] collectIntersecting returned', raw.length, 'cells:', raw.map((c: any) => c.id || c.value));
+      if (this.x == null || this.y == null) return;
+      const raw = collectIntersecting(currentRegion());
       const cells = raw.filter((c: any) => graph.isCellSelectable(c));
-      console.log('[RB execute] after isCellSelectable filter:', cells.length, 'cells');
-      try {
-        this.graph.setSelectionCells(cells);
-        console.log('[RB execute] setSelectionCells done, selection=', this.graph.getSelectionCells()?.map((c: any) => c.id || c.value));
-      } catch(e) {
-        console.error('[RB execute] setSelectionCells threw:', e);
-      }
+      this.graph.setSelectionCells(cells);
     };
 
     // 拖拽途中实时算出「真正会被选中」的图形数量，给矩形加粗作为反馈
@@ -734,15 +1436,11 @@ export class DrawioView extends FileView {
     rubberband.repaint = function () {
       originalRepaint.apply(this, arguments);
       if (!this.div || this.first == null) return;
-      const rect = currentRegion();
-      const hits = collectIntersecting(rect);
+      const hits = collectIntersecting(currentRegion());
       if (hits && hits.length > 0) {
         this.div.classList.add("mxRubberband-preview");
-        // 只在命中数变化时打日志，避免刷屏
-        (this as any)._lastHitCount !== hits.length && (console.log('[RB repaint] hits=', hits.length), (this as any)._lastHitCount = hits.length);
       } else {
         this.div.classList.remove("mxRubberband-preview");
-        (this as any)._lastHitCount !== 0 && (console.log('[RB repaint] hits=0'), (this as any)._lastHitCount = 0);
       }
     };
 
@@ -1165,6 +1863,11 @@ export class DrawioView extends FileView {
       this.saveTimeout = null;
     }
     this.endPaletteDrag();
+    this.closeCtxMenu();
+    if (this.ctxMenuEl) {
+      this.ctxMenuEl.remove();
+      this.ctxMenuEl = null;
+    }
     if (this.graph) {
       this.graph.destroy();
       this.graph = null;
@@ -1174,5 +1877,7 @@ export class DrawioView extends FileView {
     this.graphContainer = null;
     this.formatPanel = null;
     this.formatPanelEl = null;
+    this.scratchSectionEl = null;
+    this.scratchGridEl = null;
   }
 }

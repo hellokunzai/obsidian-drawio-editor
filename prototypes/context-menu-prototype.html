@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DrawIO 右键菜单原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    color: #1a1a1a;
+    background: #f5f5f5;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ===== Canvas Area (draw.io style) ===== */
+  .canvas-wrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-color: #e8e8e8;
+    background-image:
+      linear-gradient(rgba(180,180,180,.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(180,180,180,.4) 1px, transparent 1px);
+    background-size: 20px 20px;
+    overflow: hidden;
+  }
+
+  /* Selected shape */
+  .shape {
+    position: absolute;
+    top: 120px;
+    left: 200px;
+    width: 160px;
+    height: 100px;
+    border: 2px solid #167dff;
+    border-radius: 2px;
+    background: rgba(255,255,255,.85);
+    cursor: default;
+  }
+
+  /* Selection handles */
+  .handle {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 2px solid #167dff;
+    border-radius: 50%;
+    background: #fff;
+    z-index: 2;
+  }
+  .handle.tl { top: -5px; left: -5px; cursor: nw-resize; }
+  .handle.tc { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+  .handle.tr { top: -5px; right: -5px; cursor: ne-resize; }
+  .handle.ml { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+  .handle.mr { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
+  .handle.bl { bottom: -5px; left: -5px; cursor: sw-resize; }
+  .handle.bc { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+  .handle.br { bottom: -5px; right: -5px; cursor: se-resize; }
+
+  /* Rotation handle */
+  .rotate-handle {
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 16px;
+    cursor: grab;
+    z-index: 2;
+  }
+  .rotate-handle svg {
+    display: block;
+  }
+
+  /* ===== Context Menu ===== */
+  .ctx-menu {
+    position: absolute;
+    top: 110px;
+    left: 375px;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 4px 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
+    z-index: 100;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 20px;
+    cursor: default;
+    color: #333;
+    transition: background .12s;
+  }
+  .ctx-item:hover { background: #f0f2f5; }
+  .ctx-item.danger { color: #e53e3e; }
+  .ctx-item.danger:hover { background: #fef2f2; }
+  .ctx-item .shortcut {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: #999;
+  }
+
+  .ctx-sep {
+    height: 1px;
+    background: #eee;
+    margin: 4px 14px;
+  }
+
+  .ctx-disabled {
+    color: #bbb;
+    pointer-events: none;
+  }
+
+  /* Submenu arrow */
+  .ctx-arrow {
+    margin-left: auto;
+    color: #999;
+    font-size: 10px;
+  }
+
+  /* Label badge for prototype info */
+  .prototype-label {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    background: rgba(0,0,0,.55);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 200;
+    letter-spacing: .3px;
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas-wrapper">
+
+  <!-- Shape with selection handles -->
+  <div class="shape" id="shape">
+    <div class="handle tl"></div>
+    <div class="handle tc"></div>
+    <div class="handle tr"></div>
+    <div class="handle ml"></div>
+    <div class="handle mr"></div>
+    <div class="handle bl"></div>
+    <div class="handle bc"></div>
+    <div class="handle br"></div>
+    <div class="rotate-handle">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="#167dff">
+        <path d="M12 2C13.1 2 14 2.9 14 4C14 4.74 13.6 5.39 13 5.73V7H19C20.1 7 21 7.9 21 9V15C21.6 15.34 22 15.99 22 17C22 18.1 21.1 19 20 19C18.9 19 18 18.1 18 17C18 16.26 18.4 15.61 19 15.27V9H13V15.27C13.6 15.61 14 16.26 14 17C14 18.1 13.1 19 12 19C10.9 19 10 18.1 10 17C10 16.26 10.4 15.61 11 15.27V5.73C10.4 5.39 10 4.74 10 4C10 2.9 10.9 2 12 2M6 9H5V15H6V9M6 7C4.9 7 4 7.9 4 9V15C4 16.1 4.9 17 6 17H7V7H6Z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="ctx-menu" id="ctxMenu">
+    <div class="ctx-item danger">删除<span class="shortcut">Del</span></div>
+
+    <div class="ctx-item">剪切<span class="shortcut">Ctrl+X</span></div>
+    <div class="ctx-item">复制<span class="shortcut">Ctrl+C</span></div>
+    <div class="ctx-item">创建副本<span class="shortcut">Ctrl+D</span></div>
+
+    <div class="ctx-sep"></div>
+
+    <div class="ctx-item">锁定 / 解锁</div>
+    <div class="ctx-item">设置为默认样式</div>
+
+    <div class="ctx-item">移至最前<span class="shortcut">Ctrl+Shift+]</span></div>
+    <div class="ctx-item">移至最后<span class="shortcut">Ctrl+Shift+[</span></div>
+    <div class="ctx-item">上移一层<span class="shortcut">Ctrl+]</span></div>
+    <div class="ctx-item">下移一层<span class="shortcut">Ctrl+[</span></div>
+
+    <div class="ctx-sep"></div>
+
+    <div class="ctx-item">编辑样式...<span class="shortcut">Ctrl+E</span></div>
+    <div class="ctx-item">编辑数据...<span class="shortcut">Ctrl+M</span></div>
+    <div class="ctx-item">编辑链接...</div>
+    <div class="ctx-item">编辑连接点...</div>
+
+    <div class="ctx-sep"></div>
+
+    <div class="ctx-item">添加到便签本</div>
+  </div>
+
+</div>
+
+<div class="prototype-label">HTML Prototype — 右键菜单交互原型（静态展示）</div>
+
+<script>
+  // Allow dragging the shape to reposition
+  const shape = document.getElementById('shape');
+  const ctxMenu = document.getElementById('ctxMenu');
+  let dragging = false;
+  let offsetX, offsetY;
+
+  shape.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('handle') || e.target.closest('.rotate-handle')) return;
+    dragging = true;
+    offsetX = e.clientX - shape.offsetLeft;
+    offsetY = e.clientY - shape.offsetTop;
+    shape.style.cursor = 'move';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    shape.style.left = (e.clientX - offsetX) + 'px';
+    shape.style.top = (e.clientY - offsetY) + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    shape.style.cursor = 'default';
+  });
+
+  // Right-click on shape to show/hide menu at cursor
+  shape.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    ctxMenu.style.left = (e.clientX + 8) + 'px';
+    ctxMenu.style.top = (e.clientY + 8) + 'px';
+    ctxMenu.style.display = 'block';
+  });
+
+  // Click elsewhere to hide
+  document.addEventListener('mousedown', e => {
+    if (!ctxMenu.contains(e.target)) {
+      // Keep visible in this prototype for demo purposes
+    }
+  });
+
+  // Menu item click feedback
+  document.querySelectorAll('.ctx-item:not(.ctx-disabled)').forEach(item => {
+    item.addEventListener('click', () => {
+      item.style.background = '#e8eaed';
+      setTimeout(() => { item.style.background = ''; }, 150);
+    });
+  });
+</script>
+
+</body>
+</html>
