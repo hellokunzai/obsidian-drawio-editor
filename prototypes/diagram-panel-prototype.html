@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>右侧新增面板原型 · obsidian-drawio-editor</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-2: #f8f9fa;
+      --border: #e3e5e9;
+      --text: #22252a;
+      --text-2: #6b7280;
+      --accent: #167dff;
+      --accent-soft: rgba(22, 125, 255, 0.12);
+      --hover: #f3f4f6;
+      --radius-sm: 6px;
+      --grid-line: rgba(0, 0, 0, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    .app { display: flex; height: 100vh; width: 100vw; }
+
+    /* ============================================================
+       左：画布
+       ============================================================ */
+    .canvas {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background-color: #ffffff;
+      background-image:
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 20px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .canvas.no-grid { background-image: none; }
+
+    .page {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid #d8dade;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: width 0.15s ease, height 0.15s ease;
+    }
+    .page.hidden { border-color: transparent; box-shadow: none; background: transparent; }
+    .page.with-shadow { box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.16); }
+
+    .node {
+      width: 120px;
+      height: 60px;
+      border: 2px solid #333333;
+      border-radius: 6px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333333;
+      cursor: pointer;
+      user-select: none;
+    }
+    .node.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .node.sketch { border-style: dashed; }
+    .node.plain { border-radius: 0; }
+
+    .canvas-hint {
+      position: absolute;
+      left: 18px;
+      top: 16px;
+      max-width: 350px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      color: var(--text-2);
+      line-height: 1.7;
+    }
+    .canvas-hint b { color: var(--text); }
+
+    /* 原型状态提示（仅原型标注，非插件 UI） */
+    .state-pill {
+      position: absolute;
+      right: 14px;
+      top: 16px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #22252a;
+      color: #fff;
+      opacity: 0.88;
+      pointer-events: none;
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 26px;
+      transform: translateX(-50%) translateY(8px);
+      padding: 8px 16px;
+      border-radius: 6px;
+      background: #22252a;
+      color: #fff;
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s, transform 0.18s;
+    }
+    .toast.show { opacity: 0.92; transform: translateX(-50%) translateY(0); }
+
+    /* ============================================================
+       右：面板轨道（同时只显示一个面板，宽度固定不跳）
+       ============================================================ */
+    .rail {
+      width: 300px;
+      flex-shrink: 0;
+      position: relative;
+      border-left: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .panel {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--surface-2);
+    }
+    .panel.active { display: flex; }
+
+    /* Tab 行 */
+    .drawio-fmt-tabs {
+      display: flex;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .drawio-fmt-tab {
+      flex: 1;
+      padding: 9px 0;
+      border: none;
+      background: transparent;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text-2);
+      cursor: pointer;
+      position: relative;
+    }
+    .drawio-fmt-tab:hover { color: var(--text); }
+    .drawio-fmt-tab.active { color: var(--accent); font-weight: 500; }
+    .drawio-fmt-tab.active::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+
+    /* 内容区 */
+    .drawio-fmt-body { flex: 1; overflow-y: auto; padding: 12px; }
+    .drawio-fmt-tabpane { display: none; }
+    .drawio-fmt-tabpane.active { display: block; }
+
+    /* 绘图 Tab 的分组标题（不可折叠，对齐图一） */
+    .drawio-fmt-group-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      padding-top: 10px;
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .drawio-fmt-group-title:first-child { padding-top: 0; margin-top: 0; border-top: none; }
+    .drawio-fmt-group-body { padding: 10px 0 2px; }
+
+    /* 通用行 / 标签 */
+    .drawio-fmt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .drawio-fmt-row:last-child { margin-bottom: 0; }
+    .drawio-fmt-label { font-size: 13px; color: var(--text); min-width: 44px; }
+    .drawio-fmt-label-wide { font-size: 13px; color: var(--text); min-width: 52px; }
+    .drawio-fmt-spacer { flex: 1; }
+    .drawio-fmt-divider { height: 1px; background: var(--border); margin: 12px 0; }
+    .drawio-fmt-block { width: 100%; }
+
+    /* 复选框 */
+    .drawio-fmt-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .drawio-fmt-check input { margin: 0; cursor: pointer; accent-color: var(--accent); }
+
+    /* 下拉 */
+    .drawio-fmt-select {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 6px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    .drawio-fmt-select:focus { border-color: var(--accent); }
+
+    /* 数字输入 */
+    .drawio-fmt-number {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .drawio-fmt-number input {
+      width: 46px;
+      border: none;
+      padding: 4px 4px 4px 6px;
+      font: inherit;
+      font-size: 13px;
+      text-align: right;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+    }
+    .drawio-fmt-unit { padding-right: 4px; font-size: 12px; color: var(--text-2); }
+    .drawio-fmt-spin { display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+    .drawio-fmt-spin button {
+      width: 17px;
+      height: 13px;
+      border: none;
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      line-height: 1;
+      color: var(--text-2);
+      padding: 0;
+    }
+    .drawio-fmt-spin button:first-child { border-bottom: 1px solid var(--border); }
+    .drawio-fmt-spin button:hover { background: var(--hover); }
+
+    /* 颜色块 + 铅笔 */
+    .drawio-fmt-colorbox { display: flex; align-items: center; gap: 6px; }
+    .drawio-fmt-colorswatch {
+      width: 38px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      background: #ffffff;
+    }
+    .drawio-fmt-colorswatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; border: none; padding: 0; }
+    .drawio-fmt-color {
+      width: 30px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      position: relative;
+      cursor: pointer;
+      background: #ffffff;
+    }
+    .drawio-fmt-color input { position: absolute; inset: 0; opacity: 0; cursor: pointer; border: none; padding: 0; }
+    .drawio-fmt-pencil {
+      width: 22px; height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--surface);
+      color: var(--text-2);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+    }
+    .drawio-fmt-pencil:hover { background: var(--hover); color: var(--text); }
+    .drawio-fmt-pencil svg { width: 12px; height: 12px; }
+
+    /* 按钮 */
+    .drawio-fmt-btn {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .drawio-fmt-btn:hover { background: var(--hover); }
+    .drawio-fmt-btn.grow { flex: 1; }
+    .drawio-fmt-help {
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      border: 1px solid var(--text-2);
+      color: var(--text-2);
+      font-size: 11px;
+      line-height: 14px;
+      text-align: center;
+      cursor: help;
+      user-select: none;
+    }
+
+    /* 单选组 */
+    .drawio-fmt-radios { display: flex; align-items: center; gap: 16px; padding-left: 4px; }
+    .drawio-fmt-radio {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; cursor: pointer; color: var(--text);
+    }
+    .drawio-fmt-radio input { margin: 0; cursor: pointer; accent-color: var(--accent); }
+
+    /* 折叠分区（原格式面板沿用） */
+    .drawio-fmt-section { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    .drawio-fmt-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text);
+      user-select: none;
+    }
+    .drawio-fmt-section-arrow { font-size: 10px; color: var(--text-2); transition: transform 0.15s ease; }
+    .drawio-fmt-section.open .drawio-fmt-section-arrow { transform: rotate(90deg); }
+    .drawio-fmt-section-body { display: none; padding-top: 10px; }
+    .drawio-fmt-section.open .drawio-fmt-section-body { display: block; }
+
+    /* 样式 — 快速配色 */
+    .drawio-fmt-style-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 6px; margin-bottom: 14px;
+    }
+    .drawio-fmt-swatch {
+      aspect-ratio: 1.6;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    .drawio-fmt-swatch:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+    .drawio-fmt-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* 文本工具条 */
+    .drawio-fmt-toolbar { display: flex; gap: 5px; margin-bottom: 10px; align-items: center; }
+    .drawio-fmt-tbtn {
+      min-width: 28px; height: 26px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit; font-size: 13px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 6px;
+    }
+    .drawio-fmt-tbtn:hover { background: var(--hover); }
+    .drawio-fmt-tbtn.active { background: var(--accent-soft); border-color: rgba(22, 125, 255, 0.35); color: var(--accent); }
+
+    /* 排列网格 */
+    .drawio-fmt-arrange-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .drawio-fmt-arrange-btn {
+      padding: 7px 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font: inherit; font-size: 13px; color: var(--text);
+      cursor: pointer;
+    }
+    .drawio-fmt-arrange-btn:hover { background: var(--hover); }
+    .drawio-fmt-stack { display: flex; flex-direction: column; gap: 6px; }
+    .drawio-fmt-effects-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* 底部按钮组（原格式面板） */
+    .drawio-fmt-bottom {
+      flex-shrink: 0;
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--surface-2);
+    }
+    .drawio-fmt-bottom-btn {
+      width: 100%;
+      padding: 6px 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font: inherit; font-size: 13px; color: var(--text);
+      cursor: pointer;
+    }
+    .drawio-fmt-bottom-btn:hover { background: var(--hover); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ========================= 画布 ========================= -->
+    <div class="canvas" id="canvas">
+      <div class="canvas-hint">
+        <b>原型说明</b><br />
+        · 点<b>空白处</b> → 显示<b>新增的右侧面板</b>（图一 绘图 / 图二 样式）<br />
+        · 点<b>图形</b> → 原「格式」面板（样式 / 文本 / 排列）<br />
+        · 两个面板相互独立，占同一位置、互斥显示
+      </div>
+      <div class="state-pill" id="statePill">当前：新增面板（绘图 / 样式）</div>
+
+      <div class="page" id="page">
+        <div class="node" id="nodeEl">流程节点</div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <!-- ========================= 右侧面板轨道（互斥） ========================= -->
+    <div class="rail">
+
+      <!-- ========== 面板 A：本次新增的面板（无选中时显示） ========== -->
+      <aside class="panel active" id="panelDiagram">
+        <div class="drawio-fmt-tabs" id="tabsDiagram">
+          <button class="drawio-fmt-tab active" data-tab="d-diagram">绘图</button>
+          <button class="drawio-fmt-tab" data-tab="d-style">样式</button>
+        </div>
+
+        <div class="drawio-fmt-body">
+          <!-- 绘图（图一） -->
+          <div class="drawio-fmt-tabpane active" data-pane="d-diagram">
+            <div class="drawio-fmt-group-title">查看</div>
+            <div class="drawio-fmt-group-body">
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check">
+                  <input type="checkbox" id="chkGrid" checked /><span>网格</span>
+                </label>
+                <div class="drawio-fmt-spacer"></div>
+                <div class="drawio-fmt-number">
+                  <input type="text" id="gridSize" value="10" />
+                  <span class="drawio-fmt-unit">pt</span>
+                  <div class="drawio-fmt-spin">
+                    <button data-step-target="gridSize" data-step="1">▲</button>
+                    <button data-step-target="gridSize" data-step="-1">▼</button>
+                  </div>
+                </div>
+                <div class="drawio-fmt-colorbox">
+                  <div class="drawio-fmt-colorswatch">
+                    <input type="color" id="gridColor" value="#d0d0d0" />
+                  </div>
+                  <button class="drawio-fmt-pencil" title="编辑网格颜色">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check">
+                  <input type="checkbox" id="chkPageView" checked /><span>页面视图</span>
+                </label>
+              </div>
+
+              <div class="drawio-fmt-row">
+                <span class="drawio-fmt-label" style="min-width:52px">背景</span>
+                <button class="drawio-fmt-btn grow" id="btnBgChange">更改...</button>
+              </div>
+
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check"><input type="checkbox" id="chkBgColor" /><span>背景色</span></label>
+              </div>
+
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check"><input type="checkbox" id="chkShadow" /><span>阴影</span></label>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-group-title">选项</div>
+            <div class="drawio-fmt-group-body">
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check"><input type="checkbox" id="chkArrows" checked /><span>连接箭头</span></label>
+              </div>
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check"><input type="checkbox" id="chkConnPoints" checked /><span>连接点</span></label>
+              </div>
+              <div class="drawio-fmt-row">
+                <label class="drawio-fmt-check"><input type="checkbox" id="chkGuides" checked /><span>参考线</span></label>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-group-title">页面尺寸</div>
+            <div class="drawio-fmt-group-body">
+              <div class="drawio-fmt-row">
+                <select class="drawio-fmt-select" id="pageSize">
+                  <option value="210x297">A4 (210 mm x 297 mm)</option>
+                  <option value="148x210">A5 (148 mm x 210 mm)</option>
+                  <option value="297x420">A3 (297 mm x 420 mm)</option>
+                  <option value="216x279">Letter (216 mm x 279 mm)</option>
+                  <option value="0x0">自定义...</option>
+                </select>
+              </div>
+              <div class="drawio-fmt-row">
+                <div class="drawio-fmt-radios">
+                  <label class="drawio-fmt-radio"><input type="radio" name="orient" value="portrait" checked /><span>竖向</span></label>
+                  <label class="drawio-fmt-radio"><input type="radio" name="orient" value="landscape" /><span>横向</span></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-divider"></div>
+            <div class="drawio-fmt-row">
+              <button class="drawio-fmt-btn drawio-fmt-block" id="btnEditData">编辑数据...</button>
+            </div>
+            <div class="drawio-fmt-row">
+              <button class="drawio-fmt-btn drawio-fmt-block" id="btnClearDefault">清除默认风格</button>
+            </div>
+          </div>
+
+          <!-- 样式（图二：整图级样式） -->
+          <div class="drawio-fmt-tabpane" data-pane="d-style">
+            <div class="drawio-fmt-row">
+              <span class="drawio-fmt-label" style="min-width:72px">自适应颜色</span>
+              <select class="drawio-fmt-select" style="flex:0 0 92px">
+                <option>无</option>
+                <option>自动</option>
+                <option>色相</option>
+                <option>明度</option>
+              </select>
+              <span class="drawio-fmt-help" title="自适应颜色：让图形配色自动适配整体主题">?</span>
+            </div>
+            <div class="drawio-fmt-row">
+              <label class="drawio-fmt-check"><input type="checkbox" id="chkSketchA" /><span>草图</span></label>
+              <div class="drawio-fmt-spacer"></div>
+              <button class="drawio-fmt-btn" id="btnRoundedA">圆角</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ========== 面板 B：原「格式」面板（选中图形时显示，未改动） ========== -->
+      <aside class="panel" id="panelFormat">
+        <div class="drawio-fmt-tabs" id="tabsFormat">
+          <button class="drawio-fmt-tab active" data-tab="f-style">样式</button>
+          <button class="drawio-fmt-tab" data-tab="f-text">文本</button>
+          <button class="drawio-fmt-tab" data-tab="f-arrange">排列</button>
+        </div>
+
+        <div class="drawio-fmt-body">
+          <!-- 样式 -->
+          <div class="drawio-fmt-tabpane active" data-pane="f-style">
+            <div class="drawio-fmt-row">
+              <span class="drawio-fmt-label" style="min-width:72px">自适应颜色</span>
+              <select class="drawio-fmt-select" style="flex:0 0 92px">
+                <option>无</option><option>自动</option><option>色相</option><option>明度</option>
+              </select>
+              <span class="drawio-fmt-help" title="自适应颜色">?</span>
+            </div>
+            <div class="drawio-fmt-row">
+              <label class="drawio-fmt-check"><input type="checkbox" id="chkSketch" /><span>草图</span></label>
+              <div class="drawio-fmt-spacer"></div>
+              <button class="drawio-fmt-btn" id="btnRounded">圆角</button>
+            </div>
+
+            <div class="drawio-fmt-divider"></div>
+
+            <div class="drawio-fmt-style-grid" id="styleGrid"></div>
+
+            <div class="drawio-fmt-section open">
+              <div class="drawio-fmt-section-header"><span>填充</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-row">
+                  <label class="drawio-fmt-check"><input type="checkbox" checked /><span>填充</span></label>
+                  <div class="drawio-fmt-spacer"></div>
+                  <div class="drawio-fmt-color"><input type="color" value="#ffffff" /></div>
+                </div>
+                <div class="drawio-fmt-row">
+                  <label class="drawio-fmt-check"><input type="checkbox" /><span>渐变</span></label>
+                  <div class="drawio-fmt-spacer"></div>
+                  <select class="drawio-fmt-select" style="flex:0 0 96px" disabled>
+                    <option>向下</option><option>向上</option><option>向左</option><option>向右</option>
+                  </select>
+                  <div class="drawio-fmt-color"><input type="color" value="#000000" /></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-section open">
+              <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-row">
+                  <label class="drawio-fmt-check"><input type="checkbox" checked /><span>线条</span></label>
+                  <div class="drawio-fmt-spacer"></div>
+                  <div class="drawio-fmt-color"><input type="color" value="#333333" /></div>
+                </div>
+                <div class="drawio-fmt-row">
+                  <select class="drawio-fmt-select">
+                    <option>─────────</option><option>- - - - -</option><option>· · · · ·</option><option>-·-·-·-·</option>
+                  </select>
+                  <div class="drawio-fmt-number">
+                    <input type="text" value="1" /><span class="drawio-fmt-unit">pt</span>
+                    <div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-row" style="margin:12px 0">
+              <span class="drawio-fmt-label">不透明度</span>
+              <div class="drawio-fmt-number">
+                <input type="text" value="100" /><span class="drawio-fmt-unit">%</span>
+                <div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div>
+              </div>
+            </div>
+
+            <div class="drawio-fmt-section">
+              <div class="drawio-fmt-section-header"><span>效果</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-effects-grid">
+                  <label class="drawio-fmt-check"><input type="checkbox" checked /><span>圆角</span></label>
+                  <label class="drawio-fmt-check"><input type="checkbox" id="chkSketch2" /><span>草图</span></label>
+                  <label class="drawio-fmt-check"><input type="checkbox" /><span>玻璃</span></label>
+                  <label class="drawio-fmt-check"><input type="checkbox" /><span>阴影</span></label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 文本 -->
+          <div class="drawio-fmt-tabpane" data-pane="f-text">
+            <div class="drawio-fmt-row">
+              <select class="drawio-fmt-select">
+                <option>Helvetica</option><option>Arial</option><option>Inter</option>
+                <option>Segoe UI</option><option>宋体</option><option>微软雅黑</option>
+              </select>
+            </div>
+            <div class="drawio-fmt-toolbar">
+              <button class="drawio-fmt-tbtn" style="font-weight:bold">B</button>
+              <button class="drawio-fmt-tbtn" style="font-style:italic">I</button>
+              <button class="drawio-fmt-tbtn" style="text-decoration:underline">U</button>
+              <button class="drawio-fmt-tbtn" style="text-decoration:line-through">S</button>
+              <select class="drawio-fmt-select" style="flex:0 0 78px">
+                <option>12 px</option><option>14 px</option><option>16 px</option><option>18 px</option>
+              </select>
+            </div>
+            <div class="drawio-fmt-toolbar">
+              <button class="drawio-fmt-tbtn">⇤</button>
+              <button class="drawio-fmt-tbtn active">↔</button>
+              <button class="drawio-fmt-tbtn">⇥</button>
+              <button class="drawio-fmt-tbtn">↑</button>
+              <button class="drawio-fmt-tbtn">↕</button>
+              <button class="drawio-fmt-tbtn">↓</button>
+            </div>
+            <div class="drawio-fmt-row">
+              <span class="drawio-fmt-label">位置</span>
+              <select class="drawio-fmt-select"><option>水平居中</option><option>左对齐</option><option>右对齐</option></select>
+            </div>
+            <div class="drawio-fmt-row">
+              <span class="drawio-fmt-label">书写方向</span>
+              <select class="drawio-fmt-select"><option>自动</option><option>水平</option><option>垂直</option></select>
+            </div>
+            <div class="drawio-fmt-row">
+              <label class="drawio-fmt-check"><input type="checkbox" checked /><span>字体颜色</span></label>
+              <div class="drawio-fmt-spacer"></div>
+              <div class="drawio-fmt-color"><input type="color" value="#333333" /></div>
+            </div>
+            <div class="drawio-fmt-row">
+              <label class="drawio-fmt-check"><input type="checkbox" /><span>背景色</span></label>
+              <div class="drawio-fmt-spacer"></div>
+              <div class="drawio-fmt-color"><input type="color" value="#ffffff" /></div>
+            </div>
+            <div class="drawio-fmt-divider"></div>
+            <div class="drawio-fmt-row"><label class="drawio-fmt-check"><input type="checkbox" checked /><span>自动换行</span></label></div>
+            <div class="drawio-fmt-row"><label class="drawio-fmt-check"><input type="checkbox" checked /><span>格式化文本</span></label></div>
+            <div class="drawio-fmt-row">
+              <span class="drawio-fmt-label">不透明度</span>
+              <div class="drawio-fmt-number">
+                <input type="text" value="100" /><span class="drawio-fmt-unit">%</span>
+                <div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 排列 -->
+          <div class="drawio-fmt-tabpane" data-pane="f-arrange">
+            <div class="drawio-fmt-arrange-grid">
+              <button class="drawio-fmt-arrange-btn">移至最前</button>
+              <button class="drawio-fmt-arrange-btn">移至最后</button>
+              <button class="drawio-fmt-arrange-btn">上移一层</button>
+              <button class="drawio-fmt-arrange-btn">下移一层</button>
+            </div>
+            <div class="drawio-fmt-section open">
+              <div class="drawio-fmt-section-header"><span>大小 / 位置</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-row">
+                  <span class="drawio-fmt-label-wide">大小</span>
+                  <div class="drawio-fmt-number"><input type="text" value="120" /><span class="drawio-fmt-unit">pt</span><div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div></div>
+                  <div class="drawio-fmt-number"><input type="text" value="60" /><span class="drawio-fmt-unit">pt</span><div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div></div>
+                </div>
+                <div class="drawio-fmt-row"><label class="drawio-fmt-check"><input type="checkbox" checked /><span>限制比例</span></label></div>
+                <div class="drawio-fmt-row">
+                  <span class="drawio-fmt-label-wide">位置</span>
+                  <div class="drawio-fmt-number"><input type="text" value="265" /><span class="drawio-fmt-unit">pt</span><div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div></div>
+                  <div class="drawio-fmt-number"><input type="text" value="342" /><span class="drawio-fmt-unit">pt</span><div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="drawio-fmt-section open">
+              <div class="drawio-fmt-section-header"><span>旋转</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-row">
+                  <div class="drawio-fmt-number"><input type="text" value="0" /><span class="drawio-fmt-unit">°</span><div class="drawio-fmt-spin"><button>▲</button><button>▼</button></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="drawio-fmt-section open">
+              <div class="drawio-fmt-section-header"><span>翻转</span><span class="drawio-fmt-section-arrow">▸</span></div>
+              <div class="drawio-fmt-section-body">
+                <div class="drawio-fmt-arrange-grid">
+                  <button class="drawio-fmt-arrange-btn">水平翻转</button>
+                  <button class="drawio-fmt-arrange-btn">垂直翻转</button>
+                </div>
+              </div>
+            </div>
+            <div class="drawio-fmt-row" style="margin:12px 0">
+              <button class="drawio-fmt-arrange-btn drawio-fmt-block">对齐到网格</button>
+            </div>
+            <div class="drawio-fmt-stack">
+              <button class="drawio-fmt-arrange-btn">组合</button>
+              <button class="drawio-fmt-arrange-btn">取消组合</button>
+              <button class="drawio-fmt-arrange-btn">锁定</button>
+              <button class="drawio-fmt-arrange-btn">删除</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawio-fmt-bottom">
+          <button class="drawio-fmt-bottom-btn">编辑</button>
+          <button class="drawio-fmt-bottom-btn">复制样式</button>
+          <button class="drawio-fmt-bottom-btn">设置为默认样式</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const page = document.getElementById('page');
+    const node = document.getElementById('nodeEl');
+    const panelDiagram = document.getElementById('panelDiagram');
+    const panelFormat = document.getElementById('panelFormat');
+    const statePill = document.getElementById('statePill');
+    const toastEl = document.getElementById('toast');
+
+    let toastTimer = null;
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1400);
+    }
+
+    /* ---------- 两个面板的 Tab 各自独立 ---------- */
+    function bindTabs(tabsId) {
+      const tabs = document.getElementById(tabsId);
+      tabs.querySelectorAll('.drawio-fmt-tab').forEach((t) => {
+        t.addEventListener('click', () => {
+          tabs.querySelectorAll('.drawio-fmt-tab').forEach((x) =>
+            x.classList.toggle('active', x === t));
+          const panel = tabs.parentElement;
+          panel.querySelectorAll('.drawio-fmt-tabpane').forEach((p) =>
+            p.classList.toggle('active', p.dataset.pane === t.dataset.tab));
+        });
+      });
+    }
+    bindTabs('tabsDiagram');
+    bindTabs('tabsFormat');
+
+    /* ---------- 核心：按选中状态切换「哪个面板显示」 ---------- */
+    function setSelected(on) {
+      node.classList.toggle('selected', on);
+      panelFormat.classList.toggle('active', on);
+      panelDiagram.classList.toggle('active', !on);
+      statePill.textContent = on
+        ? '当前：原「格式」面板（样式 / 文本 / 排列）'
+        : '当前：新增面板（绘图 / 样式）';
+    }
+    node.addEventListener('click', (e) => { e.stopPropagation(); setSelected(true); });
+    canvas.addEventListener('click', () => setSelected(false));
+
+    /* ---------- 新增面板 · 绘图 Tab ---------- */
+    const chkGrid = document.getElementById('chkGrid');
+    chkGrid.addEventListener('change', () =>
+      canvas.classList.toggle('no-grid', !chkGrid.checked));
+
+    document.getElementById('gridColor').addEventListener('input', (e) => {
+      document.documentElement.style.setProperty('--grid-line', hexToRgba(e.target.value, 0.35));
+    });
+
+    document.getElementById('chkPageView').addEventListener('change', (e) =>
+      page.classList.toggle('hidden', !e.target.checked));
+
+    document.getElementById('btnBgChange').addEventListener('click', () => {
+      const c = prompt('背景色（十六进制，如 #f0f4ff）', '#f0f4ff');
+      if (c) { canvas.dataset.bg = c; applyBg(); }
+    });
+    const chkBgColor = document.getElementById('chkBgColor');
+    chkBgColor.addEventListener('change', applyBg);
+    function applyBg() {
+      if (chkBgColor.checked && !canvas.dataset.bg) canvas.dataset.bg = '#f0f4ff';
+      canvas.style.backgroundColor = chkBgColor.checked ? canvas.dataset.bg : '';
+    }
+
+    const chkShadow = document.getElementById('chkShadow');
+    chkShadow.addEventListener('change', () =>
+      page.classList.toggle('with-shadow', chkShadow.checked));
+
+    ['chkArrows', 'chkConnPoints', 'chkGuides'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', (e) =>
+        toast(e.target.parentElement.textContent.trim() + '：' + (e.target.checked ? '开' : '关')));
+    });
+
+    const pageSize = document.getElementById('pageSize');
+    let dims = { w: 210, h: 297 };
+    function applyPageSize() {
+      const landscape = document.querySelector('input[name=orient]:checked').value === 'landscape';
+      page.style.width = (landscape ? dims.h : dims.w) + 'px';
+      page.style.height = (landscape ? dims.w : dims.h) + 'px';
+    }
+    pageSize.addEventListener('change', () => {
+      if (pageSize.value === '0x0') { dims = { w: 240, h: 240 }; toast('自定义尺寸：原型里先用 240×240 占位'); }
+      else { const [w, h] = pageSize.value.split('x').map(Number); dims = { w, h }; }
+      applyPageSize();
+    });
+    document.querySelectorAll('input[name=orient]').forEach((r) =>
+      r.addEventListener('change', applyPageSize));
+    applyPageSize();
+
+    document.getElementById('btnEditData').addEventListener('click', () =>
+      toast('编辑数据…（打开 mxGraph 模型 XML 编辑弹窗）'));
+    document.getElementById('btnClearDefault').addEventListener('click', () =>
+      toast('清除默认风格（重置新建图形的默认样式）'));
+
+    /* ---------- 新增面板 · 样式 Tab ---------- */
+    const chkSketchA = document.getElementById('chkSketchA');
+    const chkSketch = document.getElementById('chkSketch');
+    const chkSketch2 = document.getElementById('chkSketch2');
+    function applySketch() {
+      const on = chkSketchA.checked;
+      chkSketch.checked = on;
+      chkSketch2.checked = on;
+      node.classList.toggle('sketch', on);
+    }
+    chkSketchA.addEventListener('change', applySketch);
+    [chkSketch, chkSketch2].forEach((c) => c.addEventListener('change', () => {
+      chkSketchA.checked = c.checked;
+      applySketch();
+    }));
+
+    let roundedA = true, roundedB = true;
+    document.getElementById('btnRoundedA').addEventListener('click', () => {
+      roundedA = !roundedA;
+      node.classList.toggle('plain', !roundedA);
+      toast(roundedA ? '圆角：开' : '圆角：关');
+    });
+    document.getElementById('btnRounded').addEventListener('click', () => {
+      roundedB = !roundedB;
+      node.classList.toggle('plain', !roundedB);
+      toast(roundedB ? '圆角：开' : '圆角：关');
+    });
+
+    /* ---------- 原格式面板 · 快速配色 ---------- */
+    const QS = [
+      { fill: '#ffffff', stroke: '#333333' }, { fill: '#dbeafe', stroke: '#167dff' },
+      { fill: '#dcfce7', stroke: '#16a34a' }, { fill: '#fef3c7', stroke: '#d97706' },
+      { fill: '#fee2e2', stroke: '#dc2626' }, { fill: '#f3e8ff', stroke: '#7c3aed' },
+      { fill: '#fde68a', stroke: '#b45309' }, { fill: '#bfdbfe', stroke: '#1d4ed8' },
+      { fill: '#333333', stroke: '#000000' }, { fill: '#167dff', stroke: '#0f5fd6' },
+      { fill: '#16a34a', stroke: '#15803d' }, { fill: '#dc2626', stroke: '#991b1b' },
+    ];
+    const gridEl = document.getElementById('styleGrid');
+    QS.forEach((s) => {
+      const sw = document.createElement('div');
+      sw.className = 'drawio-fmt-swatch';
+      sw.style.background = `linear-gradient(135deg, ${s.fill} 0 50%, ${s.stroke} 50% 100%)`;
+      sw.title = `填充 ${s.fill} / 描边 ${s.stroke}`;
+      sw.addEventListener('click', () => {
+        gridEl.querySelectorAll('.drawio-fmt-swatch').forEach((x) => x.classList.remove('active'));
+        sw.classList.add('active');
+        node.style.background = s.fill;
+        node.style.borderColor = s.stroke;
+        node.style.color = s.stroke;
+      });
+      gridEl.appendChild(sw);
+    });
+
+    /* ---------- 折叠分区 / 步进 / 按钮 ---------- */
+    document.querySelectorAll('.drawio-fmt-section-header').forEach((h) =>
+      h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+    document.querySelectorAll('.drawio-fmt-spin button[data-step-target]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const input = document.getElementById(b.dataset.stepTarget);
+        input.value = String(Math.max(1, (parseFloat(input.value) || 0) + Number(b.dataset.step)));
+      }));
+    document.querySelectorAll('.drawio-fmt-tbtn').forEach((b) =>
+      b.addEventListener('click', () => b.classList.toggle('active')));
+    document.querySelectorAll('.drawio-fmt-arrange-btn').forEach((b) =>
+      b.addEventListener('click', () => toast(b.textContent.trim() + '（示例动作）')));
+
+    function hexToRgba(hex, a) {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+    }
+
+    /* 初始：无选中 → 显示新增面板 */
+    setSelected(false);
+  </script>
+</body>
+</html>

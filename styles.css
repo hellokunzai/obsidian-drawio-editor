@@ -827,6 +827,235 @@ body.drawio-palette-resizing {
 }
 
 /* ============================================================
+   右侧面板轨道：新增的「绘图」面板 与 原「格式」面板 互斥显示
+   两个面板绝对定位铺满同一条 300px 轨道，切换时画布宽度不跳。
+   ============================================================ */
+
+.drawio-panel-rail {
+  position: relative;
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+
+.drawio-panel-rail > .drawio-diagram-panel,
+.drawio-panel-rail > .drawio-format-panel {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  margin-right: 0;
+  border-left: none;
+  transition: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+/* 折叠 = 直接移出渲染流（轨道宽度恒定，不做位移动画） */
+.drawio-panel-rail > .drawio-collapsed {
+  display: none;
+}
+
+/* 「绘图」面板：未选中图形时显示 */
+.drawio-diagram-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+/* 绘图 Tab 的分组标题：不可折叠，用上边线分隔（对齐 draw.io 的 Diagram 面板） */
+.drawio-fmt-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.drawio-fmt-group-title:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.drawio-fmt-group-body {
+  padding: 10px 0 2px;
+}
+
+.drawio-fmt-spacer,
+.drawio-fmt-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 通用小按钮（绘图面板用） */
+.drawio-fmt-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-primary);
+  font-size: 13px;
+  color: var(--text-normal);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.drawio-fmt-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-fmt-btn.active {
+  background: rgba(22, 125, 255, 0.12);
+  border-color: rgba(22, 125, 255, 0.45);
+  color: #167dff;
+}
+
+/* 「?」帮助气泡 */
+.drawio-fmt-help {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--text-faint);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  cursor: help;
+  user-select: none;
+}
+
+/* 竖向 / 横向单选 */
+.drawio-fmt-radios {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.drawio-fmt-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.drawio-fmt-radio input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* 网格颜色：色块 + 铅笔按钮 */
+.drawio-fmt-colorbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.drawio-fmt-colorswatch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.drawio-fmt-colorswatch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drawio-fmt-pencil {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.drawio-fmt-pencil:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-fmt-pencil svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 数字框的上下步进（原生 spinner 已在下面隐藏，避免两组箭头打架） */
+.drawio-fmt-spin {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+.drawio-fmt-spin-btn {
+  flex: 1;
+  width: 18px;
+  padding: 0;
+  border: none;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 7px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawio-fmt-spin-btn:first-child {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.drawio-fmt-spin-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-fmt-number input::-webkit-outer-spin-button,
+.drawio-fmt-number input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 「背景 → 更改…」背后的隐形取色框：只用来唤起系统取色器 */
+.drawio-fmt-hidden-color {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ============================================================
    画布右键上下文菜单（draw.io 风格）
    配色沿用项目约定：普通 DOM + Obsidian CSS 变量，强调色用具体 #167dff
    ============================================================ */

@@ -17,12 +17,17 @@ import {
 } from "./mxgraph-setup";
 import { getAllShapeCategories, getShapeLabel, ShapeDef } from "./shapes";
 import { loadAllStencils } from "./stencil-loader";
-import { ScratchShape } from "./settings";
+import {
+  ScratchShape,
+  DrawioSettings,
+  MIN_PALETTE_WIDTH,
+  MAX_PALETTE_WIDTH,
+} from "./settings";
 import { TextEditModal } from "./TextEditModal";
-import { MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH } from "./settings";
 import { inflate } from "pako";
 import { t, tOr } from "./i18n";
 import { FormatPanel } from "./FormatPanel";
+import { DrawPanel, mmToPageUnits } from "./DrawPanel";
 import { PageBar } from "./PageBar";
 
 export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
@@ -62,6 +67,9 @@ export class DrawioView extends FileView {
   private suppressPaletteClick = false;
   private formatPanelEl: HTMLElement | null = null;
   private formatPanel: FormatPanel | null = null;
+  /** 新增的「绘图」面板（无选中图形时显示，与原格式面板互斥） */
+  private diagramPanelEl: HTMLElement | null = null;
+  private drawPanel: DrawPanel | null = null;
 
   /** 右键上下文菜单元素（挂在 document.body，position: fixed） */
   private ctxMenuEl: HTMLElement | null = null;
@@ -154,8 +162,12 @@ export class DrawioView extends FileView {
     // 底部页面栏：宽度与画布区一致（右抵格式面板），与 draw.io 行为相同
     this.buildPageBar(canvasArea);
 
-    // 格式面板（默认折叠隐藏，选中图形时滑出）
-    this.formatPanelEl = mainArea.createDiv({
+    // 右侧面板轨道：宽度固定 300px，里面放两个互斥的面板，切换时画布宽度不跳。
+    //   上/后者 = 原「格式」面板（选中图形时显示，默认折叠）
+    //   前者    = 新增的「绘图」面板（无选中时显示）
+    const rail = mainArea.createDiv({ cls: "drawio-panel-rail" });
+    this.diagramPanelEl = rail.createDiv({ cls: "drawio-diagram-panel" });
+    this.formatPanelEl = rail.createDiv({
       cls: "drawio-format-panel drawio-collapsed",
     });
   }
@@ -798,26 +810,224 @@ export class DrawioView extends FileView {
   }
 
   /**
-   * 右侧格式面板：监听 mxGraph 选择变化，选中图形时滑出面板并填充属性，
-   * 取消选择（点击空白）时隐藏。面板内的所有改动通过回调 markDirty 触发自动保存。
+   * 右侧两个面板（同一轨道内互斥）：
+   *  - 选中图形 → 原「格式」面板（样式 / 文本 / 排列）
+   *  - 未选中   → 新增的「绘图」面板（绘图 / 样式）
+   * 由 mxGraph 选择变化驱动切换；面板内的改动通过回调 markDirty 触发自动保存。
    */
   private setupFormatPanel(): void {
-    if (!this.graph || !this.formatPanelEl) return;
+    if (!this.graph || !this.formatPanelEl || !this.diagramPanelEl) return;
 
     const MxEvent = mxEvent();
     this.formatPanel = new FormatPanel(this.formatPanelEl, this.graph, () =>
       this.markDirty()
     );
 
+    this.drawPanel = new DrawPanel(this.diagramPanelEl, {
+      getSettings: () => this.plugin.settings,
+      patchSettings: (patch) => this.patchDiagramSettings(patch),
+      editPageData: () => this.editPageData(),
+      clearDefaultStyle: () => this.clearDefaultStyle(),
+      applyStyleToPage: (key, value) => this.applyStyleToPage(key, value),
+      getPageStyle: (key) => this.getPageStyle(key),
+    });
+
     const selectionModel = this.graph.getSelectionModel();
     selectionModel.addListener(MxEvent.CHANGE, () => {
       const cells = this.graph.getSelectionCells();
-      if (cells && cells.length > 0) {
+      const hasSelection = !!(cells && cells.length > 0);
+      if (hasSelection) {
         this.formatPanel?.show(cells);
       } else {
         this.formatPanel?.hide();
       }
+      // 两个面板互斥：选中图形时收起绘图面板，反之收起格式面板（其 hide 内已加类）
+      this.diagramPanelEl?.classList.toggle("drawio-collapsed", hasSelection);
     });
+
+    // 初始：无选中 → 显示绘图面板
+    this.diagramPanelEl.classList.remove("drawio-collapsed");
+  }
+
+  /** 合并「绘图」面板的设置补丁：写回 settings、持久化并立即生效 */
+  private patchDiagramSettings(patch: Partial<DrawioSettings>): void {
+    Object.assign(this.plugin.settings, patch);
+    void this.plugin.saveSettings();
+    this.applyDiagramSettings();
+  }
+
+  /**
+   * 把「绘图」面板的设置落到 mxGraph 上：
+   * 网格、参考线、连接点、连线箭头默认值、页面视图与页面尺寸、画布底色。
+   */
+  applyDiagramSettings(): void {
+    if (!this.graph) return;
+
+    const settings = this.plugin.settings;
+    const consts = mxConstants();
+
+    // 网格：mxGraph 只拿它做吸附，真正的绘制在 updateGridBackground 的 CSS 层
+    this.graph.setGridEnabled(settings.showGrid);
+    this.graph.setGridSize(
+      settings.gridSize > 0 ? settings.gridSize : DrawioView.GRID_SIZE
+    );
+
+    // 参考线：拖动图形时的对齐虚线（mxGraphHandler 默认关闭）
+    if (this.graph.graphHandler) {
+      this.graph.graphHandler.guidesEnabled = !!settings.guides;
+    }
+
+    // 连接点：mxConstraintHandler 负责悬停 / 拖拽时在图形上标出连接点
+    const connectionHandler = this.graph.connectionHandler;
+    if (connectionHandler && connectionHandler.constraintHandler) {
+      connectionHandler.constraintHandler.enabled = !!settings.connectionPoints;
+    }
+
+    // 连接箭头：作用在「新建连线」的默认样式上
+    const edgeStyle = this.graph.getStylesheet().getDefaultEdgeStyle();
+    if (settings.connectionArrows) {
+      edgeStyle[consts.STYLE_ENDARROW] = consts.ARROW_CLASSIC;
+    } else {
+      delete edgeStyle[consts.STYLE_ENDARROW];
+    }
+
+    // 页面视图 + 页面尺寸。
+    // mxGraph 会按 pageFormat 在背景层画一块纸面；默认填白 + 投影，
+    // 这里改成只描边的浅色外框，否则会盖住容器上的 CSS 网格、暗色主题下也刺眼。
+    const view = this.graph.getView();
+    const RectShape = (window as any).mxRectangleShape;
+    if (RectShape && !view.__drawioPageShapePatched) {
+      view.__drawioPageShapePatched = true;
+      view.createBackgroundPageShape = (bounds: any) =>
+        new RectShape(bounds, "none", "#8a8f98");
+    }
+
+    const MxRectangle = mxRectangle();
+    const w = mmToPageUnits(settings.pageWidth || 210);
+    const h = mmToPageUnits(settings.pageHeight || 297);
+    const landscape = settings.pageOrientation === "landscape";
+    // mxGraph 默认 pageScale = 1.5（为打印预留），这里回到 1，
+    // A4 才会渲染成 draw.io 里的 827 × 1169
+    this.graph.pageScale = 1;
+    this.graph.pageVisible = !!settings.pageView;
+    this.graph.pageFormat = new MxRectangle(
+      0,
+      0,
+      landscape ? h : w,
+      landscape ? w : h
+    );
+    view.validateBackground();
+    if (view.backgroundPageShape) {
+      view.backgroundPageShape.isShadow = false;
+      view.backgroundPageShape.redraw();
+    }
+
+    this.applyCanvasBackground();
+    this.updateGridBackground();
+    this.graph.refresh();
+  }
+
+  /** 画布底色：启用「背景色」时用用户选的颜色，否则跟随明暗主题 */
+  private applyCanvasBackground(): void {
+    if (!this.graph) return;
+    const settings = this.plugin.settings;
+    if (settings.backgroundEnabled && settings.backgroundColor) {
+      this.graph.container.style.backgroundColor = settings.backgroundColor;
+      return;
+    }
+    const isDark = document.body.hasClass("theme-dark");
+    this.graph.container.style.backgroundColor = isDark ? "#1e1e1e" : "#ffffff";
+  }
+
+  /**
+   * 对当前页所有图形写入 / 清除某个样式（「阴影 / 草图 / 圆角 / 自适应颜色」用）。
+   * 这些是整图级样式，作用对象是页内全部顶点。
+   */
+  private applyStyleToPage(key: string, value: string | null): void {
+    if (!this.graph) return;
+    const model = this.graph.getModel();
+    const cells = model.filterDescendants((cell: any) => model.isVertex(cell));
+    if (!cells || cells.length === 0) {
+      this.drawPanel?.refresh();
+      return;
+    }
+    model.beginUpdate();
+    try {
+      this.graph.setCellStyles(key, value, cells);
+    } finally {
+      model.endUpdate();
+    }
+    this.markDirty();
+    this.drawPanel?.refresh();
+  }
+
+  /** 读取当前页所有图形共有的某个样式值；不一致或页内无图形时返回 null */
+  private getPageStyle(key: string): string | null {
+    if (!this.graph) return null;
+    const model = this.graph.getModel();
+    const cells = model.filterDescendants((cell: any) => model.isVertex(cell));
+    if (!cells || cells.length === 0) return null;
+
+    const MxUtils = mxUtils();
+    let value: string | null = null;
+    let seen = false;
+    for (const cell of cells) {
+      const style = this.graph.getCellStyle(cell) || {};
+      const v = MxUtils.getValue(style, key, null);
+      if (!seen) {
+        value = v;
+        seen = true;
+      } else if (v !== value) {
+        return null;
+      }
+    }
+    return value;
+  }
+
+  /** 「编辑数据…」：以 XML 形式编辑当前页的 mxGraphModel，应用后重载当前页 */
+  private editPageData(): void {
+    if (!this.graph) return;
+    this.captureActivePage();
+    const page = this.pages[this.activePage];
+    new TextEditModal(this.app, {
+      title: t("diagram.editDataTitle"),
+      label: t("diagram.editDataLabel"),
+      value: page ? page.xml : "",
+      hint: t("diagram.editDataHint"),
+      onSave: (value) => {
+        const xml = value.trim();
+        if (!xml) return false;
+        try {
+          const MxUtils = mxUtils();
+          const doc = MxUtils.parseXml(xml);
+          if (!doc || !doc.getElementsByTagName("mxGraphModel")[0]) {
+            new Notice(t("diagram.editDataInvalid"));
+            return false;
+          }
+        } catch {
+          new Notice(t("diagram.editDataInvalid"));
+          return false;
+        }
+        if (page) page.xml = xml;
+        this.loadPageIntoGraph(this.activePage);
+        this.markDirty();
+        this.drawPanel?.refresh();
+        return true;
+      },
+    }).open();
+  }
+
+  /** 「清除默认风格」：把默认顶点 / 连线样式恢复成本插件的出厂默认 */
+  private clearDefaultStyle(): void {
+    if (!this.graph) return;
+    const sheet = this.graph.getStylesheet();
+    sheet.putDefaultVertexStyle(sheet.createDefaultVertexStyle());
+    sheet.putDefaultEdgeStyle(sheet.createDefaultEdgeStyle());
+    // 重新套用本插件的主题化默认（透明填充 / 描边色）、默认连线走线方式与面板里的默认样式项
+    this.applyTheme();
+    this.applySettings();
+    this.drawPanel?.refresh();
+    new Notice(t("diagram.defaultStyleCleared"));
   }
 
   /**
@@ -1641,16 +1851,14 @@ export class DrawioView extends FileView {
     view.scaleAndTranslate(newScale, sx / newScale - gx, sy / newScale - gy);
   }
 
-  /** 应用用户设置：网格显示、新建连线的默认走线方式 */
+  /** 应用用户设置：绘图面板的全部选项 + 新建连线的默认走线方式 */
   applySettings(): void {
     if (!this.graph) return;
 
     const settings = this.plugin.settings;
     const consts = mxConstants();
 
-    this.graph.setGridEnabled(settings.showGrid);
-    this.graph.setGridSize(DrawioView.GRID_SIZE);
-    this.updateGridBackground();
+    this.applyDiagramSettings();
 
     const edgeStyle = this.graph.getStylesheet().getDefaultEdgeStyle();
     if (settings.defaultEdgeStyle === "straight") {
@@ -1668,10 +1876,9 @@ export class DrawioView extends FileView {
     if (!this.graph) return;
 
     const isDark = document.body.hasClass("theme-dark");
-    const bgColor = isDark ? "#1e1e1e" : "#ffffff";
     const textColor = isDark ? "#dcddde" : "#333333";
 
-    this.graph.container.style.backgroundColor = bgColor;
+    this.applyCanvasBackground();
     this.graph.container.style.color = textColor;
 
     const stylesheet = this.graph.getStylesheet();
@@ -1723,12 +1930,22 @@ export class DrawioView extends FileView {
 
     const view = this.graph.getView();
     const scale = view.scale || 1;
-    const size = Math.max(4, DrawioView.GRID_SIZE * scale);
+    const gridSize =
+      this.plugin.settings.gridSize > 0
+        ? this.plugin.settings.gridSize
+        : DrawioView.GRID_SIZE;
+    const size = Math.max(4, gridSize * scale);
     const offsetX = (((view.translate.x * scale) % size) + size) % size;
     const offsetY = (((view.translate.y * scale) % size) + size) % size;
-    const line = document.body.hasClass("theme-dark")
-      ? "rgba(255, 255, 255, 0.08)"
-      : "rgba(0, 0, 0, 0.08)";
+
+    // 网格线颜色：用户在「绘图」面板里选过就用它，否则跟随明暗主题
+    const custom = this.plugin.settings.gridColor;
+    const line =
+      custom && /^#[0-9a-fA-F]{6}$/.test(custom)
+        ? custom
+        : document.body.hasClass("theme-dark")
+        ? "rgba(255, 255, 255, 0.08)"
+        : "rgba(0, 0, 0, 0.08)";
 
     container.style.backgroundImage =
       `linear-gradient(to right, ${line} 1px, transparent 1px), ` +
@@ -1818,6 +2035,8 @@ export class DrawioView extends FileView {
       this.undoManager.clear();
     }
     this.updateGridBackground();
+    // 换页后「绘图 / 样式」面板要重新回填（阴影 / 草图 / 圆角等跟随当前页内容）
+    this.drawPanel?.refresh();
   }
 
   /** 切换页面 */
@@ -2198,6 +2417,8 @@ export class DrawioView extends FileView {
     this.graphContainer = null;
     this.formatPanel = null;
     this.formatPanelEl = null;
+    this.drawPanel = null;
+    this.diagramPanelEl = null;
     this.scratchSectionEl = null;
     this.scratchGridEl = null;
     this.pages = [];

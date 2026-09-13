@@ -28,8 +28,9 @@
 ## 工作习惯
 - 改完代码必须跑 tsc + 构建，并同步升三处版本号（manifest.json / package.json / versions.json）。
 
-## 视图 DOM 结构（v0.12.0 起）
-- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container` + **`.drawio-pagebar`**，右侧 `.drawio-format-panel`）。
+## 视图 DOM 结构（v0.13.0 起）
+- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container` + **`.drawio-pagebar`**，右侧 **`.drawio-panel-rail`**）。
+- `.drawio-panel-rail`（v0.13.0）固定 300px、`position:relative`，内含 `.drawio-diagram-panel`（新增的「绘图」面板）与 `.drawio-format-panel`（原格式面板）两个 `position:absolute; inset:0` 的兄弟节点，靠 `.drawio-collapsed`（= `display:none`）互斥。⚠️ 旧的 `margin-right:-300px` 滑出方案在轨道内失效（负 margin 只对 flex 最后一个子项有效），rail 规则里已覆盖成 `width:auto; margin-right:0; transition:none`；`.drawio-panel-rail > .drawio-collapsed` 必须排在 `.drawio-panel-rail > .drawio-format-panel` **之后**（同 0,2,0 特异性，靠顺序取胜）。
 - 页面栏放在 `.drawio-canvas-area` 内（不是 wrapper 下），所以其宽度天然等于画布区宽——左起形状面板右缘、右抵格式面板左缘，与 draw.io 一致。改成整宽的话要把它挪到 `.drawio-wrapper` 之后。
 - 改布局时注意：`.drawio-wrapper` 不能再写 `height:100%`，否则会顶出容器。
 
@@ -46,10 +47,26 @@
 
 ## 格式面板（FormatPanel）结构要点
 - v0.11.2 起**没有头部**：不再有 `.drawio-fmt-header`（「格式」标题 + 折叠/关闭图标按钮），`.drawio-fmt-tabs`（样式/文本/排列）就是面板第一行。i18n 的 `format.title/collapse/close` 已删除，别再加回来。
-- 面板显隐由 `DrawioView` 里 `selectionModel` 的 CHANGE 监听驱动：有选中 → `show(cells)`，空选中 → `hide()`；「排列」Tab 的删除按钮也调 `hide()`。
+- 面板显隐由 `DrawioView` 里 `selectionModel` 的 CHANGE 监听驱动：有选中 → `show(cells)`，空选中 → `hide()`；「排列」Tab 的删除按钮也调 `hide()`。**v0.13.0 起同一个监听还负责两面板互斥**：`diagramPanelEl.classList.toggle("drawio-collapsed", hasSelection)`。
 - 底部按钮组 `.drawio-fmt-bottom` 只在「样式」Tab 显示（切 Tab 时 `display` 在 flex/none 间切换）。
 
+## 绘图面板（DrawPanel，v0.13.0）
+- 新增 `src/DrawPanel.ts`，与 `FormatPanel` 同构（原生 DOM + `h()` helper，不依赖 Obsidian HTMLElement 扩展），复用 `.drawio-fmt-*` 类名；新增的类：`.drawio-panel-rail` / `.drawio-diagram-panel` / `.drawio-fmt-group-title` / `.drawio-fmt-group-body` / `.drawio-fmt-grow` / `.drawio-fmt-btn(.active)` / `.drawio-fmt-help` / `.drawio-fmt-radios` / `.drawio-fmt-radio` / `.drawio-fmt-colorbox` / `.drawio-fmt-colorswatch` / `.drawio-fmt-pencil` / `.drawio-fmt-spin(-btn)` / `.drawio-fmt-hidden-color`。
+- 分组标题（查看 / 选项 / 页面尺寸）**不可折叠、无箭头**，用 `border-top` 分隔（`:first-child` 去掉）；与可折叠的 `.drawio-fmt-section` 是两套东西。
+- 面板通过 `DrawPanelHost` 回调视图：`getSettings / patchSettings / editPageData / clearDefaultStyle / applyStyleToPage / getPageStyle`。样式类操作用 `model.filterDescendants(c => model.isVertex(c))` 取当前页所有顶点。
+- 12 个新设置项全部在**全局 `plugin.settings`**（`gridSize/gridColor/pageView/pageSizePreset/pageWidth/pageHeight/pageOrientation/backgroundEnabled/backgroundColor/connectionArrows/connectionPoints/guides`），`main.ts` 的 `loadSettings` 逐项兜底 + 钳制。
+
+## mxGraph 该构建（mxClient 4.2.2）的能力边界（v0.13.0 实测）
+- ⚠️ **`mxGraphModel` 没有 `grid / pageWidth / pageHeight / guides / shadow` 这些属性**（原型上只有树结构相关方法）→ `<mxGraphModel pageWidth=...>` 这类 XML 属性在 `captureActivePage` 重新 encode 时本来就会丢，画布级设置只能放插件 settings，**没有按页持久化的落点**。
+- 存在：`mxGraph.prototype.pageVisible` / `pageFormat`（默认 `mxConstants.PAGE_FORMAT_A4_PORTRAIT`）/ `pageScale`（**默认 1.5**，为打印预留；必须显式改回 1，A4 才渲染成 draw.io 的 827×1169）/ `guidesEnabled`（属性）/ `gridSize` / `gridEnabled` / `mxGraphHandler.prototype.guidesEnabled`（默认 false）/ `mxConstraintHandler.prototype.enabled`。
+- **不存在**：`setPageVisible` / `setPageFormat` / `connectionArrowsEnabled` / `connectionPointsEnabled` / `setCellsStyles` / `resetDefaultVertexStyle`（改用 `mxStylesheet` 的 `putDefault*/createDefault*`）。
+- 页面渲染链：设 `graph.pageVisible = true` + `graph.pageFormat = new mxRectangle(0,0,w,h)` → `graph.getView().validateBackground()` → `validateBackgroundPage()` 用 `getBackgroundPageBounds()`（`pageFormat.width * scale * pageScale`）建 `mxRectangleShape`。
+- ⚠️ **纸面默认 `new mxRectangleShape(bounds,"white","black")` 且 `isShadow=!0`，白色会把容器上的 CSS 网格整个盖住**（A4 ≈ 827px 宽，基本铺满视口）。修法：在 view **实例**上覆写 `createBackgroundPageShape = b => new mxRectangleShape(b,"none","#8a8f98")`（实例属性遮蔽原型、不影响其它 view），`validateBackground()` 之后再 `view.backgroundPageShape.isShadow = false` + `redraw()`（父函数在 create 之后才赋 isShadow，必须事后改）。填充 `none` 不影响框选：视图的鼠标手势监听挂在 **container** 上，事件冒泡即可。
+- 「连接箭头 / 连接点 / 参考线」的真实落点：连接点 → `graph.connectionHandler.constraintHandler.enabled`；参考线 → `graph.graphHandler.guidesEnabled`；连接箭头 → `getStylesheet().getDefaultEdgeStyle()` 的 `endArrow`（`ARROW_CLASSIC` / delete），即作用于新建连线。
+- 毫米 → 页面单位：`Math.round(mm / 25.4 * 100)`（draw.io「1 英寸 = 100 单位」，A4 210×297mm → 827×1169，与 mxGraph 默认 pageFormat 一致）。
+
 ## 近期变更
+- v0.13.0（右侧新增「绘图」面板）：在 `.drawio-main` 里加 300px 固定轨道 `.drawio-panel-rail`，装两个互斥面板——新增的 `DrawPanel`（Tab = 绘图 | 样式，无选中图形时显示）与原 `FormatPanel`（选中图形时显示）。绘图 Tab 对齐 draw.io 的 Diagram 面板（查看 / 选项 / 页面尺寸 + 编辑数据 / 清除默认风格），样式 Tab 是整图级样式（自适应颜色 / 草图 / 圆角，作用于当前页所有图形）。新增 12 个全局设置项与中英各 30 条 i18n 文案。详见上文「绘图面板」「mxGraph 该构建的能力边界」。
 - v0.12.0（底部页面栏 / 多页 sheet）：新增 `src/PageBar.ts`（页签渲染与切换、+ 新建、双击行内重命名、⋮ / 活动页签 ^ / 右键页签 / 右侧空白右键共用一个菜单，含重命名·插入·复制·左移·右移·删除，拖拽重排带蓝线指示，仅一页时删除置灰，横向滚动并自动滚到活动页）；`DrawioView` 改为「页列表 + 活动页」模型，存取 `mxfile` 下多个 `<diagram>`；新增 `loadError` 禁止解析失败时自动覆盖原文件。详见上文「多页 / 页面栏」。
 - v0.11.2（格式面板去掉头部）：「格式」标题与折叠/关闭两个图标按钮整行删除，Tab 行成为面板首行；同时清理 3 个 i18n key 与 3 条 CSS 规则。
 - v0.11.1（布局：工具栏提到顶部整宽）：工具栏从 `.drawio-canvas-area` 提到视图根容器下（横跨整宽、独占顶部一行），形状面板下移到工具栏之下——用户反馈「形状栏不要覆盖顶部菜单栏」；`.drawio-wrapper` 由 `height:100%` 改 `flex:1 1 auto; min-height:0`。

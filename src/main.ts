@@ -1,7 +1,16 @@
 import { Menu, Notice, Plugin, TAbstractFile, TFolder, WorkspaceLeaf, addIcon } from "obsidian";
 import { DrawioView, VIEW_TYPE_DRAWIO, DRAWIO_ICON_ID } from "./DrawioView";
 import { DrawioSettingTab } from "./settings-tab";
-import { DEFAULT_SETTINGS, DrawioSettings, MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  DrawioSettings,
+  MIN_PALETTE_WIDTH,
+  MAX_PALETTE_WIDTH,
+  MIN_GRID_SIZE,
+  MAX_GRID_SIZE,
+  MIN_PAGE_MM,
+  MAX_PAGE_MM,
+} from "./settings";
 import { t } from "./i18n";
 
 /** 流程图图标（两框一连线），用于标签页 / 菜单 */
@@ -151,6 +160,58 @@ export default class DrawioPlugin extends Plugin {
       this.settings.scratchpad = this.settings.scratchpad.filter(
         (s) => s && typeof s === "object" && typeof s.style === "string"
       );
+    }
+
+    // 绘图面板的设置同样做一次兜底
+    if (
+      typeof this.settings.gridSize !== "number" ||
+      !Number.isFinite(this.settings.gridSize)
+    ) {
+      this.settings.gridSize = DEFAULT_SETTINGS.gridSize;
+    }
+    this.settings.gridSize = Math.min(
+      MAX_GRID_SIZE,
+      Math.max(MIN_GRID_SIZE, Math.round(this.settings.gridSize))
+    );
+    if (
+      typeof this.settings.gridColor !== "string" ||
+      (this.settings.gridColor !== "" &&
+        !/^#[0-9a-fA-F]{6}$/.test(this.settings.gridColor))
+    ) {
+      this.settings.gridColor = "";
+    }
+    if (
+      typeof this.settings.pageSizePreset !== "string" ||
+      !this.settings.pageSizePreset
+    ) {
+      this.settings.pageSizePreset = DEFAULT_SETTINGS.pageSizePreset;
+    }
+    for (const key of ["pageWidth", "pageHeight"] as const) {
+      const v = this.settings[key];
+      this.settings[key] = Number.isFinite(v)
+        ? Math.min(MAX_PAGE_MM, Math.max(MIN_PAGE_MM, Math.round(v)))
+        : DEFAULT_SETTINGS[key];
+    }
+    if (this.settings.pageOrientation !== "landscape") {
+      this.settings.pageOrientation = "portrait";
+    }
+    if (
+      typeof this.settings.backgroundColor !== "string" ||
+      !/^#[0-9a-fA-F]{6}$/.test(this.settings.backgroundColor)
+    ) {
+      this.settings.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
+    }
+    for (const key of [
+      "pageView",
+      "backgroundEnabled",
+      "connectionArrows",
+      "connectionPoints",
+      "guides",
+    ] as const) {
+      if (typeof this.settings[key] !== "boolean") {
+        (this.settings as unknown as Record<string, unknown>)[key] =
+          DEFAULT_SETTINGS[key];
+      }
     }
   }
 
