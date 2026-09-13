@@ -1,5 +1,24 @@
 /* Draw.io Flowchart Editor Plugin Styles */
 
+/* ============================================================
+   让视图铺满整个叶子（消除底部那条空白）
+   Obsidian 默认给 `.workspace-leaf-content .view-content` 加了
+   `padding: 12px 12px 32px`（底部 32px 是给悬浮状态栏预留的缓冲，
+   而状态栏其实是 position: fixed 的浮层，并不占布局）。
+   `.drawio-editor-container` 的 `height: 100%` 只能拿到它的「内容盒」高度，
+   于是四周各露出一圈空白，底部最明显。
+   官方自己的 markdown / backlink 视图就是按 data-type 把内边距清零的，这里照做。
+   ⚠️ 选择器必须保持 (0,3,0) 特异性，才能压过 Obsidian 自带的
+   `.workspace-leaf-content .view-content`（0,2,0），不依赖样式加载顺序。
+   ⚠️ 不要改回 `height: calc(100% + 32px)` 之类的硬编码补偿：
+   内边距是 Obsidian 随版本调整的，清零才是稳的。
+   ============================================================ */
+.workspace-leaf-content[data-type="drawio-editor-view"] .view-content,
+.workspace-leaf-content .view-content:has(> .drawio-editor-container) {
+  padding: 0;
+  overflow: hidden;
+}
+
 .drawio-editor-container {
   padding: 0;
   overflow: hidden;
