@@ -37,13 +37,26 @@
 ## 工作习惯
 - 改完代码必须跑 tsc + 构建，并同步升三处版本号（manifest.json / package.json / versions.json）。
 
-## 视图 DOM 结构（v0.15.0 起）
+## 视图 DOM 结构（v0.16.0 起）
 - `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**；最左是「视图」按钮）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 **`.drawio-canvas-scroll`** → `.drawio-graph-container`，加 `.drawio-pagebar` + `.drawio-ruler-*` + 四个 `.drawio-toolwin`，右侧 **`.drawio-panel-rail`**）。
-- ⚠️ **v0.15.0 新增 `.drawio-canvas-scroll` 一层**（`.drawio-graph-container` 的父级、画布区的滚动视口）：页面视图开启时给它加 `.drawio-pageview`（`display:grid; place-content: safe center` + JS 写 `padding:Npx`），容器加 `.drawio-page-block`（`border:1px solid #8a8f98`，`width/height:auto`）。
-- ⚠️ **居中必须用 grid 的 `place-content: safe center`，不要用 flex + `margin:auto`**：块比视口大会滚动时，flex 居中会把上/左侧溢出部分推到滚动区之外（滚不到）；`safe` 溢出时退化为起点对齐，四边留白由 padding 兜住。
+- `.drawio-canvas-scroll` = 画布区的滚动视口（`.drawio-graph-container` 的父级），**常态 `display:flex; flex-direction:column` + 子项 `margin:auto`**：
+  - 页面视图关闭时容器 `width/height:100%`，块正好铺满视口，无需滚动。
+  - 页面视图开启时容器加 `.drawio-page-block`（`flex:0 0 auto; margin:auto; border:1px solid #8a8f98`），宽高由 JS 写死成「页面单位 × 缩放」。
+- ⚠️ **不要用 `display:grid; place-content: safe center`**（v0.15.0 用过，v0.16.0 换掉）：本机 Electron 不认 `safe` 关键字时整条 `place-content` 被丢弃、回落到 `normal`（= stretch），会把 `width:100%` 的普通模式画布拉高成整条滚动行程（能滚出一整屏空白）。flex + `margin:auto` 在溢出时把 margin 折算为 0，行为温和且可靠。
+- ⚠️ 页面视图下 mxGraph 的 svg 根元素要写 `overflow: visible`（`syncCanvasTranslateScope`），否则贴着纸面边缘的图形平移出块边界时会被 `overflow:hidden` 裁掉。
 - ⚠️ 标尺让位规则（`.drawio-ruler-on`）作用于 **`.drawio-canvas-scroll`**（不是 `.drawio-graph-container`），否则页面视图下只推动块本身、滚动条仍压在标尺下面。
 - `.drawio-panel-rail`（v0.13.0）固定 300px、`position:relative`，内含 `.drawio-diagram-panel`（「绘图」面板）与 `.drawio-format-panel`（原格式面板）两个 `position:absolute; inset:0` 的兄弟节点，靠 `.drawio-collapsed`（= `display:none`）互斥。⚠️ 旧的 `margin-right:-300px` 滑出方案在轨道内失效；`.drawio-panel-rail > .drawio-collapsed` 必须排在 `.drawio-panel-rail > .drawio-format-panel` **之后**（同 0,2,0 特异性，靠顺序取胜）。
 - 页面栏放在 `.drawio-canvas-area` 内，宽度天然等于画布区宽——左起形状面板右缘、右抵格式面板左缘。`.drawio-wrapper` 不能再写 `height:100%`，否则会顶出容器。
+
+## 页面视图 = 页面尺寸 1:1 预览（v0.16.0，语义修正）
+- **语义**：页面视图不是「留白开关」，而是**按页面尺寸 1:1 渲染纸面**（所见即所得）。100% 缩放时 A4 竖向 = 827×1169 px（96dpi 真实像素），也等于 draw.io 的纸面尺寸。因此纸面通常比视口大，**靠滚动查看**。
+- 用户明确否决了 v0.15.0 的「四周留白」可调滑块（伪需求）。⚠️ 教训：不要为「看起来像」的视觉现象发明可调参数，先问清这个现象的**语义**（它代表什么真实量）。
+- 实现要点（`DrawioView`）：
+  - `applyPageViewLayout()`：`container.style.width/height = round(页面单位 × view.scale)` px（开）/ `100%`（关）。
+  - 静态常量 `PAGE_MARGIN = 40`：滚动视口 padding，纯视觉留白 + 可平移缓冲，**不给用户调**。
+  - `syncCanvasTranslateScope(on)`：写视口 padding + svg `overflow:visible`。
+  - `lastPagesCfg`（`纸型|宽x高|朝向`）在 `applySettings()` 里比对，变化时 `requestAnimationFrame(() => scrollCanvasToOrigin())` 滚到纸面左上角（滚 `PAGE_MARGIN`，越界自动夹到最大滚动量）。放在 `applySettings` 而非 `applyPageViewLayout`，是为了同时覆盖「自定义宽高的步进按钮」这类纸型不变但尺寸变了的场景。
+  - mxGraph 自有纸面层**始终关闭**（`graph.pageVisible = false`，容器即纸面）；`pageFormat` 仍按纸型维护以保持内部计算一致；`pageScale` 必须是 1（默认 1.5 是打印预留）。
 
 ## 视图菜单与浮动工具窗（v0.14.0）
 - 工具栏**最左侧**是「视图」按钮（`.drawio-toolbar-btn.drawio-toolbar-viewbtn`，图标=左栏矩形 + 下拉箭头），点开自绘 DOM 菜单（`src/ViewMenu.ts`，挂 `document.body`、`position: fixed`，module 级 `activeMenu` 保证同时只开一个；勾选后**不关菜单**，原地重渲染）。7 项全部实现：形状 / 格式 / 标尺 / 查找替换 / 图层 / 标签 / 缩略图。**菜单里不显示任何快捷键**（用户明确要求，也没有绑定）。

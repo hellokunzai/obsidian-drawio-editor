@@ -274,7 +274,7 @@ body.drawio-palette-resizing {
   margin: 0 4px;
 }
 
-/* 画布滚动视口：页面视图开启时画布块在其中居中，四周留白由它的 padding 提供 */
+/* 画布滚动视口：常态铺满，页面视图下作为纸面的滚动容器 */
 .drawio-canvas-scroll {
   flex: 1;
   min-height: 0;
@@ -282,6 +282,11 @@ body.drawio-palette-resizing {
   overflow: auto;
   position: relative;
   background: var(--background-primary);
+  /* 页面视图下画布块的尺寸 = 页面尺寸 × 缩放，可能远大于视口；
+     flex 居中项在溢出时会把上/左侧挤到滚动区之外，所以只用 margin:auto 居中，
+     溢出的方向自动退化为「可滚动」。 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Graph Canvas Container */
@@ -293,21 +298,14 @@ body.drawio-palette-resizing {
   background-color: var(--background-primary);
 }
 
-/* 页面视图开启：视口用 grid + safe center 把画布块居中，四周露出空白底色。
-   ⚠️ 必须用 `safe center`（或退化到 scroll 起点）：普通 center 在内容比容器大时
-   会把上/左侧溢出部分推到滚动区之外、滚不到；safe 保证溢出时按起点对齐。 */
-.drawio-canvas-scroll.drawio-pageview {
-  background: var(--background-secondary);
-  display: grid;
-  place-content: safe center;
-}
-
-/* 页面视图：画布收缩成纸面块，1px 描边 */
+/* 页面视图：画布块按页面尺寸渲染，1px 描边标出纸面边界 */
 .drawio-graph-container.drawio-page-block {
-  width: auto;
-  height: auto;
+  /* 宽度 / 高度由 applyPageViewLayout 按「页面单位 × 缩放」写死，
+     这里声明 block 级 flex 项，避免被压扁 */
+  flex: 0 0 auto;
+  margin: auto;
   border: 1px solid #8a8f98;
-  box-shadow: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 /* mxGraph canvas overrides */
@@ -752,37 +750,6 @@ body.drawio-palette-resizing {
   padding: 5px 6px 5px 0;
   font-size: 12px;
   color: var(--text-muted);
-}
-
-/* 页面视图「四周留白」滑块 */
-.drawio-fmt-slider {
-  flex: 1;
-  min-width: 0;
-  height: 4px;
-  margin: 0;
-  padding: 0;
-  accent-color: #167dff;
-  cursor: pointer;
-  background: transparent;
-}
-
-.drawio-fmt-slider:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.drawio-fmt-slider-value {
-  min-width: 26px;
-  font-size: 12px;
-  text-align: right;
-  color: var(--text-normal);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 不可用的行：整行置灰 + 禁止交互 */
-.drawio-fmt-row.drawio-fmt-disabled {
-  opacity: 0.45;
-  pointer-events: none;
 }
 
 /* 文本工具栏（B/I/U/S + 对齐） */

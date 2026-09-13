@@ -24,8 +24,6 @@ import {
   PanelGeometry,
   MIN_PALETTE_WIDTH,
   MAX_PALETTE_WIDTH,
-  MIN_PAGE_PADDING,
-  MAX_PAGE_PADDING,
 } from "./settings";
 import { TextEditModal } from "./TextEditModal";
 import { inflate } from "pako";
@@ -75,6 +73,8 @@ export class DrawioView extends FileView {
   private graphContainer: HTMLElement | null = null;
   /** 画布滚动视口：页面视图下画布块在其内部居中并留白 */
   private canvasScrollEl: HTMLElement | null = null;
+  /** 上一次的「纸型 + 朝向」，用于判断是否需要把视口滚回纸面左上角 */
+  private lastPagesCfg = "";
   private isDirty = false;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private dragGhost: HTMLElement | null = null;
@@ -1157,9 +1157,11 @@ export class DrawioView extends FileView {
 
     // 页面视图 + 页面尺寸。
     // 关闭时：画布铺满可用区域，无边界、网格满屏（原行为不变）。
-    // 开启时：画布容器收缩成「页面尺寸 × 缩放」的矩形块并居中，
-    //   四周留白由外层滚动视口的 padding 提供（见 applyPageViewLayout）。
-    // 纸面本身不再由 mxGraph 画：容器即纸面，边界交给 CSS 描边，
+    // 开启时：画布容器收缩成「页面单位 × 当前缩放」的矩形块，
+    //   100% 缩放时 A4 就是 827×1169 px（96dpi 真实像素），
+    //   即 draw.io 的「1:1 页面尺寸预览」；超出视口的部分靠滚动查看。
+    //   块本身由 CSS 描边，外层滚动视口负责滚动与留白（见 applyPageViewLayout）。
+    // 纸面不再由 mxGraph 画：容器即纸面，边界交给 CSS 描边，
     // 这样网格天然只覆盖纸面、也不会被白色填充盖住。
     const view = this.graph.getView();
     const RectShape = (window as any).mxRectangleShape;
@@ -1176,8 +1178,8 @@ export class DrawioView extends FileView {
     // mxGraph 默认 pageScale = 1.5（为打印预留），这里回到 1，
     // A4 才会渲染成 draw.io 里的 827 × 1169
     this.graph.pageScale = 1;
-    // 页面视图交给容器样式实现，mxGraph 自己的纸面层始终关闭，
-    // 避免「纸面」和「收缩后的容器」两份边界叠在一起。
+    // 本版纸面层始终关闭（容器即纸面）；pageFormat 仍按纸型维护，
+    // 让 mxGraph 内部与页面相关的计算保持一致。
     this.graph.pageVisible = false;
     this.graph.pageFormat = new MxRectangle(
       0,
@@ -1205,11 +1207,14 @@ export class DrawioView extends FileView {
   }
 
   /**
-   * 页面视图的画布布局：
-   * - 关闭：画布铺满滚动视口（宽高都撑满），无边框、无留白。
-   * - 开启：画布收缩成「页面尺寸 × 当前缩放」的矩形块，滚动视口用 grid +
-   *   `safe center` 把它居中；视口的 padding 提供四周留白，因此纸面比视口大、
-   *   需要滚动时，滚到端点也仍有空白，不会贴边。
+   * 页面视图的画布布局 —— 按「页面尺寸」1:1 预览纸面（所见即所得）：
+   * - 关闭：画布铺满滚动视口（宽高都撑满），无边框。
+   * - 开启：画布收缩成「页面单位 × 当前缩放」的矩形块。因为 100% 缩放时
+   *   A4 就是 827×1169 px（96dpi 真实像素），块通常比视口大，靠外层滚动视口滚动。
+   *
+   * 滚动视口用 grid + `safe center`：块装得下就居中，装不下就退化成从起点对齐，
+   * 保证左上角永远滚得到（普通 center 会把溢出的上/左侧推到滚动区之外）。
+   * 给块的父级加 padding，块比视口小时四周才不会贴边。
    *
    * 容器尺寸一旦变化必须手动通知 mxGraph（它没有 ResizeObserver），
    * 所以最后统一走 resizeGraphToContainer()。
@@ -1223,20 +1228,6 @@ export class DrawioView extends FileView {
     const on = !!settings.pageView;
 
     const container = this.graphContainer;
-    const scroll = this.canvasScrollEl;
-
-    const pad = Math.max(
-      MIN_PAGE_PADDING,
-      Math.min(
-        MAX_PAGE_PADDING,
-        Number.isFinite(settings.pagePadding)
-          ? Math.round(settings.pagePadding)
-          : 40
-      )
-    );
-
-    scroll.toggleClass("drawio-pageview", on);
-    scroll.style.padding = on ? `${pad}px` : "0";
 
     if (on) {
       // 页面的「模型单位」尺寸 → 屏幕像素：px = 单位 × scale
@@ -1257,7 +1248,30 @@ export class DrawioView extends FileView {
       container.removeClass("drawio-page-block");
     }
 
+    // 页面视图下画布块要能平移：纸面边缘之外的平移量都落在块的父级留白上
+    this.syncCanvasTranslateScope(on);
+
     this.resizeGraphToContainer();
+  }
+
+  /**
+   * mxGraph 把整幅画布（含 svg 根元素）平移 `translate` 像素。
+   * 页面视图下画布块只有纸面那么大，贴着块边界的图形会溢出到块外被裁掉
+   * （`.drawio-graph-container` 是 `overflow: hidden`），所以给块四周留出
+   * 一块「可平移缓冲」：块外的父级 padding + svg 的 overflow: visible，
+   * 让纸面边缘的图形平移时仍然可见。
+   */
+  private syncCanvasTranslateScope(on: boolean): void {
+    const scroll = this.canvasScrollEl;
+    const svg = this.graph?.view?.canvas?.ownerSVGElement as SVGElement | null;
+    if (scroll) {
+      scroll.style.padding = on
+        ? `${DrawioView.PAGE_MARGIN}px`
+        : "0";
+    }
+    if (svg) {
+      svg.style.overflow = on ? "visible" : "";
+    }
   }
 
   /**
@@ -2178,9 +2192,19 @@ export class DrawioView extends FileView {
 
     const settings = this.plugin.settings;
     const consts = mxConstants();
+    const pagesCfg = `${settings.pageSizePreset}|${settings.pageWidth}x${settings.pageHeight}|${settings.pageOrientation}`;
 
     this.applyDiagramSettings();
     this.applyViewSettings();
+
+    // 页面视图下纸面尺寸变了：滚回纸面左上角，否则用户会盯着旧位置、
+    // 换了纸型也看不出变化（越界时会自动夹到最大滚动量）。
+    if (this.plugin.settings.pageView && this.lastPagesCfg !== pagesCfg) {
+      this.lastPagesCfg = pagesCfg;
+      requestAnimationFrame(() => this.scrollCanvasToOrigin());
+    } else {
+      this.lastPagesCfg = pagesCfg;
+    }
 
     const edgeStyle = this.graph.getStylesheet().getDefaultEdgeStyle();
     if (settings.defaultEdgeStyle === "straight") {
@@ -2192,6 +2216,14 @@ export class DrawioView extends FileView {
     }
 
     this.graph.refresh();
+  }
+
+  /** 把滚动视口滚回纸面左上角（越界时浏览器会自动夹到最大滚动量） */
+  private scrollCanvasToOrigin(): void {
+    const scroll = this.canvasScrollEl;
+    if (!scroll) return;
+    const pad = DrawioView.PAGE_MARGIN;
+    scroll.scrollTo({ left: pad, top: pad });
   }
 
   applyTheme(): void {
@@ -2220,6 +2252,11 @@ export class DrawioView extends FileView {
   }
 
   private static readonly GRID_SIZE = 10;
+  /**
+   * 页面视图下画布块与滚动视口边缘的固定间距（px）。
+   * 纯视觉留白 + 可平移缓冲区，与页面尺寸无关，所以不给用户调。
+   */
+  private static readonly PAGE_MARGIN = 40;
   /** 画布缩放上下限：10% – 800% */
   private static readonly ZOOM_MIN = 0.1;
   private static readonly ZOOM_MAX = 8;

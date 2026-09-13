@@ -11,8 +11,6 @@ import {
   MAX_GRID_SIZE,
   MIN_PAGE_MM,
   MAX_PAGE_MM,
-  MIN_PAGE_PADDING,
-  MAX_PAGE_PADDING,
   PanelGeometry,
 } from "./settings";
 import { t } from "./i18n";
@@ -190,16 +188,6 @@ export default class DrawioPlugin extends Plugin {
     ) {
       this.settings.pageSizePreset = DEFAULT_SETTINGS.pageSizePreset;
     }
-    if (
-      typeof this.settings.pagePadding !== "number" ||
-      !Number.isFinite(this.settings.pagePadding)
-    ) {
-      this.settings.pagePadding = DEFAULT_SETTINGS.pagePadding;
-    }
-    this.settings.pagePadding = Math.min(
-      MAX_PAGE_PADDING,
-      Math.max(MIN_PAGE_PADDING, Math.round(this.settings.pagePadding))
-    );
     for (const key of ["pageWidth", "pageHeight"] as const) {
       const v = this.settings[key];
       this.settings[key] = Number.isFinite(v)
