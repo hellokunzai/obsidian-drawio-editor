@@ -274,12 +274,40 @@ body.drawio-palette-resizing {
   margin: 0 4px;
 }
 
+/* 画布滚动视口：页面视图开启时画布块在其中居中，四周留白由它的 padding 提供 */
+.drawio-canvas-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  background: var(--background-primary);
+}
+
 /* Graph Canvas Container */
 .drawio-graph-container {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   position: relative;
   background-color: var(--background-primary);
+}
+
+/* 页面视图开启：视口用 grid + safe center 把画布块居中，四周露出空白底色。
+   ⚠️ 必须用 `safe center`（或退化到 scroll 起点）：普通 center 在内容比容器大时
+   会把上/左侧溢出部分推到滚动区之外、滚不到；safe 保证溢出时按起点对齐。 */
+.drawio-canvas-scroll.drawio-pageview {
+  background: var(--background-secondary);
+  display: grid;
+  place-content: safe center;
+}
+
+/* 页面视图：画布收缩成纸面块，1px 描边 */
+.drawio-graph-container.drawio-page-block {
+  width: auto;
+  height: auto;
+  border: 1px solid #8a8f98;
+  box-shadow: none;
 }
 
 /* mxGraph canvas overrides */
@@ -724,6 +752,37 @@ body.drawio-palette-resizing {
   padding: 5px 6px 5px 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* 页面视图「四周留白」滑块 */
+.drawio-fmt-slider {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  accent-color: #167dff;
+  cursor: pointer;
+  background: transparent;
+}
+
+.drawio-fmt-slider:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.drawio-fmt-slider-value {
+  min-width: 26px;
+  font-size: 12px;
+  text-align: right;
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 不可用的行：整行置灰 + 禁止交互 */
+.drawio-fmt-row.drawio-fmt-disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 /* 文本工具栏（B/I/U/S + 对齐） */
@@ -1543,7 +1602,9 @@ body.drawio-palette-resizing {
   display: block;
 }
 
-.drawio-canvas-area.drawio-ruler-on .drawio-graph-container {
+/* 标尺占角时把画布整体让进去：改作用于滚动视口（画布块的父级），
+   否则页面视图下只会推动块本身、滚动条仍压在标尺下面 */
+.drawio-canvas-area.drawio-ruler-on .drawio-canvas-scroll {
   margin-top: 20px;
   margin-left: 20px;
 }

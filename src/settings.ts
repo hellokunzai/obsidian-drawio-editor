@@ -66,8 +66,10 @@ export interface DrawioSettings {
   gridSize: number;
   /** 网格线颜色（#rrggbb）；空字符串表示跟随明暗主题 */
   gridColor: string;
-  /** 是否显示页面视图（按页面尺寸画出纸面外框） */
+  /** 是否显示页面视图（按页面尺寸画出纸面，画布收缩并四周留白） */
   pageView: boolean;
+  /** 页面视图开启时，画布块四周的留白宽度（像素，四边等距） */
+  pagePadding: number;
   /** 页面尺寸预设："210x297" / "148x210" / "297x420" / "216x279" / "custom" */
   pageSizePreset: string;
   /** 页面宽度（毫米），pageSizePreset 为 custom 时由用户直接编辑 */
@@ -119,6 +121,7 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   gridSize: 10,
   gridColor: "",
   pageView: true,
+  pagePadding: 40,
   pageSizePreset: "210x297",
   pageWidth: 210,
   pageHeight: 297,
@@ -150,6 +153,9 @@ export const MAX_GRID_SIZE = 200;
 /** 页面尺寸取值范围（毫米） */
 export const MIN_PAGE_MM = 10;
 export const MAX_PAGE_MM = 5000;
+/** 页面视图下画布四周留白的取值范围（像素） */
+export const MIN_PAGE_PADDING = 0;
+export const MAX_PAGE_PADDING = 240;
 /** 浮动工具窗的最小尺寸（像素） */
 export const MIN_PANEL_W = 160;
 export const MIN_PANEL_H = 90;

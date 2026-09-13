@@ -3,8 +3,10 @@ import {
   DrawioSettings,
   MAX_GRID_SIZE,
   MAX_PAGE_MM,
+  MAX_PAGE_PADDING,
   MIN_GRID_SIZE,
   MIN_PAGE_MM,
+  MIN_PAGE_PADDING,
   PageOrientation,
 } from "./settings";
 
@@ -74,6 +76,9 @@ export class DrawPanel {
   private gridColorInput!: HTMLInputElement;
   private gridColorSwatch!: HTMLElement;
   private pageViewCheck!: HTMLInputElement;
+  private pagePaddingInput!: HTMLInputElement;
+  private pagePaddingRow!: HTMLElement;
+  private pagePaddingLabel!: HTMLElement;
   private bgColorInput!: HTMLInputElement;
   private bgColorCheck!: HTMLInputElement;
   private shadowCheck!: HTMLInputElement;
@@ -194,11 +199,41 @@ export class DrawPanel {
     // 页面视图
     const pvRow = h("div", "drawio-fmt-row");
     this.pageViewCheck = this.checkbox(t("diagram.pageView"));
-    this.pageViewCheck.addEventListener("change", () =>
-      this.host.patchSettings({ pageView: this.pageViewCheck.checked })
-    );
+    this.pageViewCheck.addEventListener("change", () => {
+      this.host.patchSettings({ pageView: this.pageViewCheck.checked });
+      this.syncPagePaddingEnabled();
+    });
     pvRow.appendChild(this.labelFor(this.pageViewCheck));
     viewBody.appendChild(pvRow);
+
+    // 四周留白（仅页面视图开启时可用）
+    this.pagePaddingRow = h("div", "drawio-fmt-row");
+    this.pagePaddingRow.appendChild(
+      h("span", "drawio-fmt-label drawio-fmt-label-wide", t("diagram.pagePadding"))
+    );
+    this.pagePaddingInput = h(
+      "input",
+      "drawio-fmt-slider"
+    ) as HTMLInputElement;
+    this.pagePaddingInput.type = "range";
+    this.pagePaddingInput.min = String(MIN_PAGE_PADDING);
+    this.pagePaddingInput.max = String(MAX_PAGE_PADDING);
+    this.pagePaddingInput.step = "4";
+    this.pagePaddingInput.addEventListener("input", () => {
+      const v = this.clamp(
+        parseFloat(this.pagePaddingInput.value),
+        MIN_PAGE_PADDING,
+        MAX_PAGE_PADDING,
+        40
+      );
+      this.pagePaddingLabel.textContent = String(v);
+      this.host.patchSettings({ pagePadding: v });
+    });
+    this.pagePaddingRow.appendChild(this.pagePaddingInput);
+    this.pagePaddingLabel = h("span", "drawio-fmt-slider-value", "40");
+    this.pagePaddingRow.appendChild(this.pagePaddingLabel);
+    this.pagePaddingRow.appendChild(h("span", "drawio-fmt-unit", "px"));
+    viewBody.appendChild(this.pagePaddingRow);
 
     // 背景 [更改...]（隐藏的取色 input 挂在按钮后面，点按钮直接唤起系统取色器）
     const bgRow = h("div", "drawio-fmt-row");
@@ -546,6 +581,9 @@ export class DrawPanel {
     this.gridColorSwatch.style.background = gridHex;
 
     this.pageViewCheck.checked = s.pageView;
+    this.pagePaddingInput.value = String(s.pagePadding);
+    this.pagePaddingLabel.textContent = String(s.pagePadding);
+    this.syncPagePaddingEnabled();
 
     this.bgColorCheck.checked = s.backgroundEnabled;
     this.bgColorInput.value = s.backgroundColor || "#ffffff";
@@ -577,5 +615,12 @@ export class DrawPanel {
 
   private defaultGridColor(): string {
     return document.body.hasClass("theme-dark") ? "#3a3d42" : "#d0d0d0";
+  }
+
+  /** 留白只在页面视图开启时可用；关闭时置灰并禁止交互 */
+  private syncPagePaddingEnabled(): void {
+    const on = this.pageViewCheck.checked;
+    this.pagePaddingRow.classList.toggle("drawio-fmt-disabled", !on);
+    this.pagePaddingInput.disabled = !on;
   }
 }

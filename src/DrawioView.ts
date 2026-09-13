@@ -24,6 +24,8 @@ import {
   PanelGeometry,
   MIN_PALETTE_WIDTH,
   MAX_PALETTE_WIDTH,
+  MIN_PAGE_PADDING,
+  MAX_PAGE_PADDING,
 } from "./settings";
 import { TextEditModal } from "./TextEditModal";
 import { inflate } from "pako";
@@ -71,6 +73,8 @@ export class DrawioView extends FileView {
   private undoManager: any = null;
   private paletteEl: HTMLElement | null = null;
   private graphContainer: HTMLElement | null = null;
+  /** 画布滚动视口：页面视图下画布块在其内部居中并留白 */
+  private canvasScrollEl: HTMLElement | null = null;
   private isDirty = false;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private dragGhost: HTMLElement | null = null;
@@ -196,7 +200,11 @@ export class DrawioView extends FileView {
     const mainArea = wrapper.createDiv({ cls: "drawio-main" });
     const canvasArea = mainArea.createDiv({ cls: "drawio-canvas-area" });
     this.canvasAreaEl = canvasArea;
-    this.graphContainer = canvasArea.createDiv({ cls: "drawio-graph-container" });
+    // 滚动视口：页面视图开启时画布块在其中居中，四周留白由它的 padding 提供
+    this.canvasScrollEl = canvasArea.createDiv({ cls: "drawio-canvas-scroll" });
+    this.graphContainer = this.canvasScrollEl.createDiv({
+      cls: "drawio-graph-container",
+    });
 
     // 底部页面栏：宽度与画布区一致（右抵格式面板），与 draw.io 行为相同
     this.buildPageBar(canvasArea);
@@ -781,6 +789,8 @@ export class DrawioView extends FileView {
     // 自定义网格层需要跟随缩放 / 平移重算偏移；标尺与缩略图同理
     const view = this.graph.getView();
     const syncView = () => {
+      // 页面视图下画布块尺寸 = 页面尺寸 × 缩放，缩放变了块也要跟着变
+      if (this.plugin.settings.pageView) this.applyPageViewLayout();
       this.updateGridBackground();
       this.ruler?.update(this.graph);
       this.minimapPanel?.scheduleRender();
@@ -1146,8 +1156,11 @@ export class DrawioView extends FileView {
     }
 
     // 页面视图 + 页面尺寸。
-    // mxGraph 会按 pageFormat 在背景层画一块纸面；默认填白 + 投影，
-    // 这里改成只描边的浅色外框，否则会盖住容器上的 CSS 网格、暗色主题下也刺眼。
+    // 关闭时：画布铺满可用区域，无边界、网格满屏（原行为不变）。
+    // 开启时：画布容器收缩成「页面尺寸 × 缩放」的矩形块并居中，
+    //   四周留白由外层滚动视口的 padding 提供（见 applyPageViewLayout）。
+    // 纸面本身不再由 mxGraph 画：容器即纸面，边界交给 CSS 描边，
+    // 这样网格天然只覆盖纸面、也不会被白色填充盖住。
     const view = this.graph.getView();
     const RectShape = (window as any).mxRectangleShape;
     if (RectShape && !view.__drawioPageShapePatched) {
@@ -1163,19 +1176,17 @@ export class DrawioView extends FileView {
     // mxGraph 默认 pageScale = 1.5（为打印预留），这里回到 1，
     // A4 才会渲染成 draw.io 里的 827 × 1169
     this.graph.pageScale = 1;
-    this.graph.pageVisible = !!settings.pageView;
+    // 页面视图交给容器样式实现，mxGraph 自己的纸面层始终关闭，
+    // 避免「纸面」和「收缩后的容器」两份边界叠在一起。
+    this.graph.pageVisible = false;
     this.graph.pageFormat = new MxRectangle(
       0,
       0,
       landscape ? h : w,
       landscape ? w : h
     );
-    view.validateBackground();
-    if (view.backgroundPageShape) {
-      view.backgroundPageShape.isShadow = false;
-      view.backgroundPageShape.redraw();
-    }
 
+    this.applyPageViewLayout();
     this.applyCanvasBackground();
     this.updateGridBackground();
     this.graph.refresh();
@@ -1191,6 +1202,62 @@ export class DrawioView extends FileView {
     }
     const isDark = document.body.hasClass("theme-dark");
     this.graph.container.style.backgroundColor = isDark ? "#1e1e1e" : "#ffffff";
+  }
+
+  /**
+   * 页面视图的画布布局：
+   * - 关闭：画布铺满滚动视口（宽高都撑满），无边框、无留白。
+   * - 开启：画布收缩成「页面尺寸 × 当前缩放」的矩形块，滚动视口用 grid +
+   *   `safe center` 把它居中；视口的 padding 提供四周留白，因此纸面比视口大、
+   *   需要滚动时，滚到端点也仍有空白，不会贴边。
+   *
+   * 容器尺寸一旦变化必须手动通知 mxGraph（它没有 ResizeObserver），
+   * 所以最后统一走 resizeGraphToContainer()。
+   */
+  private applyPageViewLayout(): void {
+    if (!this.graph || !this.graphContainer || !this.canvasScrollEl) return;
+
+    const settings = this.plugin.settings;
+    const view = this.graph.getView();
+    const scale = view.scale || 1;
+    const on = !!settings.pageView;
+
+    const container = this.graphContainer;
+    const scroll = this.canvasScrollEl;
+
+    const pad = Math.max(
+      MIN_PAGE_PADDING,
+      Math.min(
+        MAX_PAGE_PADDING,
+        Number.isFinite(settings.pagePadding)
+          ? Math.round(settings.pagePadding)
+          : 40
+      )
+    );
+
+    scroll.toggleClass("drawio-pageview", on);
+    scroll.style.padding = on ? `${pad}px` : "0";
+
+    if (on) {
+      // 页面的「模型单位」尺寸 → 屏幕像素：px = 单位 × scale
+      const w = mmToPageUnits(settings.pageWidth || 210);
+      const h = mmToPageUnits(settings.pageHeight || 297);
+      const landscape = settings.pageOrientation === "landscape";
+      const pageW = landscape ? h : w;
+      const pageH = landscape ? w : h;
+
+      // 注：本构建里 mxGraph.resizeContainer 默认为 false，
+      // sizeDidChange() 不会回写容器尺寸，所以这里设的宽高不会被抹掉。
+      container.style.width = `${Math.round(pageW * scale)}px`;
+      container.style.height = `${Math.round(pageH * scale)}px`;
+      container.addClass("drawio-page-block");
+    } else {
+      container.style.width = "100%";
+      container.style.height = "100%";
+      container.removeClass("drawio-page-block");
+    }
+
+    this.resizeGraphToContainer();
   }
 
   /**
@@ -2696,6 +2763,7 @@ export class DrawioView extends FileView {
     this.viewBtnEl = null;
     this.currentLayerId = DEFAULT_LAYER_ID;
     this.graphContainer = null;
+    this.canvasScrollEl = null;
     this.formatPanel = null;
     this.formatPanelEl = null;
     this.drawPanel = null;

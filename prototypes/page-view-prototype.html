@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>页面视图（pageView）勾选后的画布样式 — 原型 v2</title>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f7f8fa;
+    --bg-tertiary: #eef0f4;
+    --border: #e2e5ea;
+    --text-normal: #2b2f36;
+    --text-muted: #6b7280;
+    --text-faint: #9aa1ac;
+    --accent: #167dff;
+    --grid-line: rgba(0, 0, 0, 0.08);
+    --page-border: #8a8f98;
+    --canvas-bg: #ffffff;
+    /* 画布区（含纸面）之外的空白底色 = 容器底色 */
+    --void-bg: #eceef2;
+    /* 页面视图：画布块四周留白 */
+    --pad-x: 40px;
+    --pad-y: 40px;
+  }
+  body.theme-dark {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #262626;
+    --bg-tertiary: #2f2f2f;
+    --border: #3a3a3a;
+    --text-normal: #dcddde;
+    --text-muted: #9aa1ac;
+    --text-faint: #6b7280;
+    --accent: #4c9aff;
+    --grid-line: rgba(255, 255, 255, 0.08);
+    --page-border: #6b7280;
+    --canvas-bg: #1e1e1e;
+    --void-bg: #171717;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  /* ---------- 顶部说明条 ---------- */
+  .topbar {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 13px; font-weight: 600; margin: 0; }
+  .topbar .hint { font-size: 12px; color: var(--text-muted); }
+  .topbar .grow { flex: 1; }
+  .toggle-theme {
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .toggle-theme:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- 布局 ---------- */
+  .app { display: flex; flex-direction: column; height: calc(100% - 46px); }
+  .row { display: flex; flex: 1; min-height: 0; }
+
+  /* 左侧形状面板 */
+  .palette {
+    width: 190px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg-secondary);
+    padding: 10px;
+    overflow: auto;
+  }
+  .palette .search {
+    width: 100%; padding: 5px 8px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 5px;
+    background: var(--bg-primary); color: var(--text-normal);
+    margin-bottom: 10px;
+  }
+  .palette .grp { font-size: 11px; color: var(--text-faint); margin: 12px 0 6px; }
+  .shape-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .shape-cell {
+    aspect-ratio: 1; border: 1px solid transparent; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; cursor: grab;
+  }
+  .shape-cell:hover { background: var(--bg-tertiary); border-color: var(--border); }
+  .shape-cell svg { width: 22px; height: 22px; stroke: var(--text-normal); fill: none; stroke-width: 1.5; }
+
+  /* ===== 中间画布区：这是本次改动的主角 ===== */
+  .canvas-area {
+    flex: 1; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+  /* 滚动视口。开启页面视图后它铺满剩余空间，中间居中放画布块 */
+  .canvas-scroll {
+    flex: 1; min-height: 0; overflow: auto; position: relative;
+    background: var(--void-bg);            /* 四周空白 = 容器底色 */
+    display: flex;                         /* 关闭页视图时：块铺满 */
+  }
+  /* 关闭页面视图：画布块撑满视口，网格满屏 */
+  .canvas-scroll.off { display: block; }
+
+  /* ===== 画布块 ===== */
+  .graph-container {
+    position: relative;
+    background-color: var(--canvas-bg);
+    flex-shrink: 0;
+  }
+  /* 关闭页面视图：铺满，无边框，网格延伸到边缘 */
+  .canvas-scroll.off .graph-container {
+    width: 100%; height: 100%; margin: 0;
+    border: none;
+  }
+  /* 开启页面视图：居中固定尺寸 + 细边框，四周留白 */
+  .canvas-scroll.on .graph-container {
+    width: var(--block-w);
+    height: var(--block-h);
+    /* 四周留白：上下左右各 padding；margin:auto 让块在「剩余空间」里居中，
+       padding 保证内容贴边时仍有空白、且滚动到端点也不裁切 */
+    margin: auto;
+    border: 1px solid var(--page-border);
+  }
+  /* 留白由视口 padding 提供（同时作用于滚动内容的两端） */
+  .canvas-scroll.on {
+    padding: var(--pad-y) var(--pad-x);
+  }
+
+  /* 图形节点 */
+  .shape-node {
+    position: absolute;
+    border: 1px solid #333333;
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--text-normal);
+    cursor: move; user-select: none; z-index: 3;
+  }
+  .theme-dark .shape-node { border-color: #6272a4; }
+
+  /* 底部页面栏 */
+  .pagebar {
+    height: 34px; flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+    display: flex; align-items: center; gap: 4px; padding: 0 10px;
+  }
+  .page-tab {
+    padding: 3px 12px; border-radius: 4px; font-size: 12px;
+    color: var(--text-muted); cursor: pointer; border: 1px solid transparent;
+  }
+  .page-tab.active {
+    background: var(--bg-primary); border-color: var(--border);
+    color: var(--text-normal);
+  }
+
+  /* 右侧绘图面板 */
+  .rail {
+    width: 260px; flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--bg-secondary);
+    overflow: auto;
+  }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab {
+    flex: 1; text-align: center; padding: 9px 0; font-size: 12px;
+    color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--text-normal); border-bottom-color: var(--accent); font-weight: 600; }
+  .group-title {
+    font-size: 11px; color: var(--text-faint);
+    padding: 10px 12px 4px; border-top: 1px solid var(--border);
+  }
+  .group-title:first-of-type { border-top: none; }
+  .frow {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 12px; min-height: 26px;
+  }
+  .frow .lbl { flex: 1; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 13px; height: 13px; margin: 0; }
+  input[type="radio"] { accent-color: var(--accent); margin: 0; }
+  .num {
+    width: 46px; padding: 2px 5px; font-size: 12px; text-align: right;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-primary); color: var(--text-normal);
+  }
+  .unit { font-size: 11px; color: var(--text-faint); }
+  .swatch {
+    width: 16px; height: 16px; border-radius: 3px;
+    border: 1px solid var(--border); cursor: pointer;
+  }
+  select {
+    width: 100%; padding: 4px 6px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-primary); color: var(--text-normal);
+  }
+  .radio-row { display: flex; gap: 14px; padding: 4px 12px 8px; }
+  .radio-row label { font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .btn-ghost {
+    flex: 1; padding: 5px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-primary); color: var(--text-muted); cursor: pointer;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- 标注 ---------- */
+  .badge {
+    position: absolute; top: 10px; left: 10px; z-index: 20;
+    background: rgba(22, 125, 255, 0.1);
+    border: 1px solid rgba(22, 125, 255, 0.35);
+    color: var(--accent);
+    font-size: 11px; padding: 4px 9px; border-radius: 4px;
+    pointer-events: none; font-weight: 600;
+  }
+  .zoom { position: absolute; top: 10px; right: 10px; z-index: 20; display: flex; gap: 4px; }
+  .zoom button {
+    border: 1px solid var(--border); background: var(--bg-secondary);
+    color: var(--text-muted); border-radius: 4px; cursor: pointer;
+    font-size: 11px; padding: 3px 8px;
+  }
+  .zoom button:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>页面视图勾选后的画布样式</h1>
+    <span class="hint">勾选后：画布收缩成居中的纸面块，四周留空</span>
+    <div class="grow"></div>
+    <button class="toggle-theme" id="themeBtn">切换暗色</button>
+  </div>
+
+  <div class="app">
+    <div class="row">
+      <!-- 左侧形状面板 -->
+      <div class="palette">
+        <input class="search" placeholder="搜索图形" />
+        <div class="grp">便签本</div>
+        <div class="shape-grid" style="grid-template-columns: repeat(2, 1fr)">
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        </div>
+        <div class="grp">通用</div>
+        <div class="shape-grid">
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="1"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><path d="M5 5h14l-7 14z"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><path d="M12 3l9 18H3z"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></div>
+          <div class="shape-cell"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 4l16 16"/></svg></div>
+        </div>
+      </div>
+
+      <!-- 中间画布 -->
+      <div class="canvas-area">
+        <div class="badge" id="badge">页面视图：关</div>
+        <div class="zoom">
+          <button id="zoomOut">－</button>
+          <span class="unit" id="zoomLabel" style="align-self:center;min-width:38px;text-align:center;">100%</span>
+          <button id="zoomIn">＋</button>
+          <button id="zoomFit">适应画布</button>
+        </div>
+
+        <div class="canvas-scroll off" id="scroll">
+          <div class="graph-container" id="graph">
+            <div class="shape-node" id="shapeA" style="width:86px;height:48px;left:170px;top:110px;">文本框</div>
+          </div>
+        </div>
+
+        <div class="pagebar">
+          <div class="page-tab active">第 1 页</div>
+          <div class="page-tab">第 2 页</div>
+          <div class="page-tab">第 3 页</div>
+          <div class="page-tab">＋</div>
+        </div>
+      </div>
+
+      <!-- 右侧绘图面板 -->
+      <div class="rail">
+        <div class="tabs">
+          <div class="tab active">绘图</div>
+          <div class="tab">样式</div>
+        </div>
+
+        <div class="group-title">查看</div>
+        <div class="frow">
+          <span class="lbl"><input type="checkbox" id="cbGrid" checked /> 网格</span>
+          <input class="num" value="10" />
+          <span class="unit">pt</span>
+          <span class="swatch" style="background:#d0d0d0"></span>
+        </div>
+        <div class="frow">
+          <span class="lbl"><input type="checkbox" id="cbPageView" /> 页面视图</span>
+        </div>
+        <div class="frow" id="padRow" style="opacity:.45;pointer-events:none;">
+          <span class="lbl" style="flex:0 0 78px;">四周留白</span>
+          <input class="num" type="range" id="padRange" min="0" max="120" step="4" value="40"
+                 style="flex:1;width:auto;accent-color:var(--accent);" />
+          <span class="unit" id="padLabel">40</span>
+          <span class="unit">px</span>
+        </div>
+
+        <div class="group-title">背景</div>
+        <div class="frow">
+          <span class="lbl" style="flex:0 0 60px;">背景色</span>
+          <button class="btn-ghost">更改</button>
+        </div>
+        <div class="frow"><span class="lbl"><input type="checkbox" /> 背景色</span></div>
+        <div class="frow"><span class="lbl"><input type="checkbox" /> 阴影</span></div>
+
+        <div class="group-title">选项</div>
+        <div class="frow"><span class="lbl"><input type="checkbox" checked /> 连接箭头</span></div>
+        <div class="frow"><span class="lbl"><input type="checkbox" checked /> 连接点</span></div>
+        <div class="frow"><span class="lbl"><input type="checkbox" checked /> 参考线</span></div>
+
+        <div class="group-title">页面尺寸</div>
+        <div class="frow">
+          <select id="selSize">
+            <option value="210x297">A4 (210 mm x 297 mm)</option>
+            <option value="148x210">A5 (148 mm x 210 mm)</option>
+            <option value="297x420">A3 (297 mm x 420 mm)</option>
+            <option value="216x279">Letter (216 mm x 279 mm)</option>
+          </select>
+        </div>
+        <div class="radio-row">
+          <label><input type="radio" name="ori" value="portrait" checked /> 竖向</label>
+          <label><input type="radio" name="ori" value="landscape" /> 横向</label>
+        </div>
+        <div class="frow"><button class="btn-ghost">编辑数据</button></div>
+        <div class="frow"><button class="btn-ghost">清除默认风格</button></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ===== 换算与 draw.io / mxGraph 一致：1 英寸 = 100 单位 =====
+  const MM_TO_UNITS = (mm) => Math.round((mm / 25.4) * 100);
+
+  const PRESETS = {
+    '210x297': [210, 297],
+    '148x210': [148, 210],
+    '297x420': [297, 420],
+    '216x279': [216, 279],
+  };
+
+  const cbPageView = document.getElementById('cbPageView');
+  const cbGrid = document.getElementById('cbGrid');
+  const scroll = document.getElementById('scroll');
+  const graph = document.getElementById('graph');
+  const badge = document.getElementById('badge');
+  const shapeA = document.getElementById('shapeA');
+  const selSize = document.getElementById('selSize');
+  const zoomLabel = document.getElementById('zoomLabel');
+
+  let scale = 1;
+  let orientation = 'portrait';
+  let pad = 40;
+
+  function pageUnits() {
+    const [w, h] = PRESETS[selSize.value];
+    return orientation === 'landscape'
+      ? [MM_TO_UNITS(h), MM_TO_UNITS(w)]
+      : [MM_TO_UNITS(w), MM_TO_UNITS(h)];
+  }
+
+  function render() {
+    const on = cbPageView.checked;
+
+    // --- 画布块尺寸 ---
+    let blockW, blockH;
+    if (on) {
+      const [pw, ph] = pageUnits();
+      blockW = Math.round(pw * scale);
+      blockH = Math.round(ph * scale);
+    }
+
+    // --- 网格（画在画布块自己的背景层上）---
+    if (cbGrid.checked) {
+      const g = Math.max(4, 10 * scale);
+      graph.style.backgroundImage =
+        'linear-gradient(to right, var(--grid-line) 1px, transparent 1px),' +
+        'linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)';
+      graph.style.backgroundSize = g + 'px ' + g + 'px';
+    } else {
+      graph.style.backgroundImage = 'none';
+    }
+
+    if (on) {
+      graph.style.setProperty('--block-w', blockW + 'px');
+      graph.style.setProperty('--block-h', blockH + 'px');
+      scroll.className = 'canvas-scroll on';
+      badge.textContent =
+        '页面视图：开 · 画布 ' + blockW + '×' + blockH + 'px，上下左右各留 ' + pad + 'px 空白';
+    } else {
+      scroll.className = 'canvas-scroll off';
+      badge.textContent = '页面视图：关 · 画布铺满可用区域，无边界';
+    }
+
+    // 图形按缩放跟随（保持图坐标不变：px = 图坐标 × scale）
+    shapeA.style.left = (170 * scale) + 'px';
+    shapeA.style.top = (110 * scale) + 'px';
+    shapeA.style.width = (86 * scale) + 'px';
+    shapeA.style.height = (48 * scale) + 'px';
+    shapeA.style.fontSize = Math.max(9, 12 * scale) + 'px';
+
+    zoomLabel.textContent = Math.round(scale * 100) + '%';
+  }
+
+  cbPageView.addEventListener('change', () => {
+    const padRow = document.getElementById('padRow');
+    padRow.style.opacity = cbPageView.checked ? '1' : '.45';
+    padRow.style.pointerEvents = cbPageView.checked ? 'auto' : 'none';
+    render();
+  });
+  cbGrid.addEventListener('change', render);
+  selSize.addEventListener('change', render);
+  document.getElementById('padRange').addEventListener('input', (e) => {
+    pad = parseInt(e.target.value, 10);
+    document.getElementById('padLabel').textContent = String(pad);
+    document.getElementById('scroll').style.setProperty('--pad-x', pad + 'px');
+    document.getElementById('scroll').style.setProperty('--pad-y', pad + 'px');
+    render();
+  });
+  document.querySelectorAll('input[name="ori"]').forEach((r) =>
+    r.addEventListener('change', () => { orientation = r.value; render(); })
+  );
+
+  document.getElementById('zoomIn').addEventListener('click', () => {
+    scale = Math.min(2, Math.round((scale + 0.25) * 100) / 100); render();
+  });
+  document.getElementById('zoomOut').addEventListener('click', () => {
+    scale = Math.max(0.25, Math.round((scale - 0.25) * 100) / 100); render();
+  });
+  document.getElementById('zoomFit').addEventListener('click', () => {
+    // 适应画布：按视口可用高度把纸面整个装进去
+    if (!cbPageView.checked) return;
+    const avail = scroll.clientHeight - 40;
+    const [, ph] = pageUnits();
+    scale = Math.max(0.1, Math.min(1, Math.round((avail / ph) * 100) / 100));
+    render();
+    scroll.scrollTop = 0;
+  });
+
+  document.getElementById('themeBtn').addEventListener('click', (e) => {
+    document.body.classList.toggle('theme-dark');
+    e.target.textContent = document.body.classList.contains('theme-dark') ? '切换亮色' : '切换暗色';
+  });
+
+  // 简单拖拽
+  let drag = null;
+  shapeA.addEventListener('pointerdown', (e) => {
+    drag = { dx: e.clientX - shapeA.offsetLeft, dy: e.clientY - shapeA.offsetTop };
+    e.preventDefault();
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    shapeA.style.left = (e.clientX - drag.dx) + 'px';
+    shapeA.style.top = (e.clientY - drag.dy) + 'px';
+  });
+  window.addEventListener('pointerup', () => { drag = null; });
+
+  render();
+</script>
+</body>
+</html>
