@@ -100,7 +100,6 @@ export class FormatPanel {
   private groupBtn!: HTMLButtonElement;
 
   private origRatio = 1;
-  private copiedStyle: string | null = null;
 
   constructor(root: HTMLElement, graph: any, onChange: () => void) {
     this.root = root;
@@ -186,8 +185,6 @@ export class FormatPanel {
     });
     const copyBtn = h("button", "drawio-fmt-bottom-btn", t("format.copyStyle"));
     copyBtn.addEventListener("click", () => this.copyStyle());
-    const pasteBtn = h("button", "drawio-fmt-bottom-btn", t("format.pasteStyle"));
-    pasteBtn.addEventListener("click", () => this.pasteStyle());
     const defaultBtn = h(
       "button",
       "drawio-fmt-bottom-btn",
@@ -196,7 +193,6 @@ export class FormatPanel {
     defaultBtn.addEventListener("click", () => this.setAsDefaultStyle());
     bottom.appendChild(editBtn);
     bottom.appendChild(copyBtn);
-    bottom.appendChild(pasteBtn);
     bottom.appendChild(defaultBtn);
     this.root.appendChild(bottom);
   }
@@ -1020,37 +1016,12 @@ export class FormatPanel {
 
   private copyStyle(): void {
     if (this.currentCells.length === 0) return;
-    const codec = new (this.MxUtils.getCodec ? this.MxUtils.getCodec() : Object)();
     const style = this.graph.getCellStyle(this.currentCells[0]);
-    this.copiedStyle = JSON.stringify(style);
     try {
-      navigator.clipboard?.writeText(this.copiedStyle);
+      navigator.clipboard?.writeText(JSON.stringify(style));
     } catch {
       /* ignore */
     }
-    // 轻量反馈：直接改按钮文本短暂提示
-    this.onChange();
-  }
-
-  private pasteStyle(): void {
-    if (!this.copiedStyle || this.currentCells.length === 0) return;
-    let style: any;
-    try {
-      style = JSON.parse(this.copiedStyle);
-    } catch {
-      return;
-    }
-    this.graph.getModel().beginUpdate();
-    try {
-      for (const cell of this.currentCells) {
-        for (const [k, v] of Object.entries(style)) {
-          this.graph.setCellStyles(k, v as any, [cell]);
-        }
-      }
-    } finally {
-      this.graph.getModel().endUpdate();
-    }
-    this.refresh(this.currentCells);
     this.onChange();
   }
 
