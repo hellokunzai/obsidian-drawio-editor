@@ -115,30 +115,8 @@ export class FormatPanel {
   private build(): void {
     this.root.empty();
 
-    // 头部
-    const header = h("div", "drawio-fmt-header");
-    header.appendChild(h("span", "drawio-fmt-title", t("format.title")));
-    const actions = h("div", "drawio-fmt-actions");
-    const collapseBtn = h("button", "drawio-fmt-icon-btn");
-    collapseBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>';
-    collapseBtn.title = t("format.collapse");
-    const closeBtn = h("button", "drawio-fmt-icon-btn");
-    closeBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
-    closeBtn.title = t("format.close");
-    actions.appendChild(collapseBtn);
-    actions.appendChild(closeBtn);
-    header.appendChild(actions);
-    this.root.appendChild(header);
-
-    collapseBtn.addEventListener("click", () => this.hide());
-    closeBtn.addEventListener("click", () => {
-      this.graph.clearSelection();
-      this.hide();
-    });
-
-    // Tab 导航
+    // Tab 导航（v0.11.2 起去掉了「格式」标题头与折叠/关闭两个图标按钮，
+    // Tab 行直接作为面板第一行；关闭面板仍可通过清空选中或「排列」Tab 的删除完成）
     const tabs = h("div", "drawio-fmt-tabs");
     const tabDefs = [
       { id: "style", label: t("format.tab.style") },

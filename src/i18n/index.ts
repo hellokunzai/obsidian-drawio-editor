@@ -10,9 +10,6 @@ const translations: Record<string, Record<string, string>> = {
     "view.displayText": "Draw.io Diagram",
 
     // Format panel (right sidebar, shown when a shape is selected)
-    "format.title": "Format",
-    "format.collapse": "Collapse panel",
-    "format.close": "Close panel",
     "format.tab.style": "Style",
     "format.tab.text": "Text",
     "format.tab.arrange": "Arrange",
@@ -208,9 +205,6 @@ const translations: Record<string, Record<string, string>> = {
     "view.displayText": "Draw.io 图表",
 
     // 格式面板（选中图形时右侧滑出）
-    "format.title": "格式",
-    "format.collapse": "折叠面板",
-    "format.close": "关闭面板",
     "format.tab.style": "样式",
     "format.tab.text": "文本",
     "format.tab.arrange": "排列",

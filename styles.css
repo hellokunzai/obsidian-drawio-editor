@@ -424,40 +424,7 @@ body.drawio-palette-resizing {
   pointer-events: none;
 }
 
-.drawio-fmt-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-normal);
-  flex-shrink: 0;
-}
-
-.drawio-fmt-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.drawio-fmt-icon-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-}
-
-.drawio-fmt-icon-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
+/* 头部（「格式」标题 + 折叠/关闭按钮）已于 v0.11.2 移除，Tab 行直接作为面板首行 */
 
 .drawio-fmt-tabs {
   display: flex;
