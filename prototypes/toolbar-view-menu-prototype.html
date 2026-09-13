@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>draw.io 编辑器 · 工具栏最左侧「视图」按钮原型</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #f6f7f8;
+    color: #202124;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ============ 应用外壳 ============ */
+  .app {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+  }
+
+  /* ---------- 顶部工具栏（横跨整宽，独占一行） ---------- */
+  .toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #e3e5e8;
+    background: #fafafa;
+    position: relative;
+  }
+  .tb-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5f6368;
+    cursor: pointer;
+    padding: 0;
+    transition: background .15s ease, color .15s ease;
+  }
+  .tb-btn:hover { background: #eceef0; color: #202124; }
+  .tb-btn:active { background: #e0e3e6; }
+  .tb-btn svg { pointer-events: none; }
+  .tb-sep { width: 1px; height: 20px; background: #e3e5e8; margin: 0 4px; }
+
+  /* 新增的「视图」按钮：图标 + 下拉箭头，draw.io 风格更宽一点 */
+  .view-btn {
+    width: 40px;
+    gap: 1px;
+    position: relative;
+  }
+  .view-btn .chev { margin-left: -1px; opacity: .75; }
+  .view-btn.is-open { background: #e0e3e6; color: #202124; }
+  /* 原型高亮框，仅用于指出“新按钮加在哪” */
+  .view-btn.hl::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border: 2px solid #ea4335;
+    border-radius: 5px;
+    pointer-events: none;
+  }
+  .view-btn .new-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ea4335;
+    box-shadow: 0 0 0 2px #fafafa;
+  }
+
+  /* ---------- 主体：左形状栏 / 中间画布 / 右面板轨道 ---------- */
+  .wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .palette {
+    flex: 0 0 180px;
+    border-right: 1px solid #e3e5e8;
+    background: #fbfbfc;
+    overflow: auto;
+    padding: 8px;
+  }
+  .palette.hidden { display: none; }
+  .palette-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: #80868b;
+    margin: 4px 2px 6px;
+    text-transform: uppercase;
+  }
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+    gap: 2px;
+  }
+  .p-shape {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: grab;
+    background: transparent;
+  }
+  .p-shape:hover { background: #eceef0; border-color: #dadce0; }
+  .p-shape i {
+    display: block;
+    width: 30px;
+    height: 20px;
+    border: 1.6px solid #5f6368;
+    border-radius: 2px;
+  }
+  .p-shape i.round { border-radius: 10px; }
+  .p-shape i.oval { border-radius: 50%; }
+  .p-shape i.pill { border-radius: 10px; border-color: #1a73e8; }
+
+  .main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+  }
+
+  /* 画布区：用 grid 支持标尺占位，标尺关闭时轨道宽高为 0 */
+  .canvas-area {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 0px 1fr;
+    grid-template-rows: 0px 1fr auto;
+    background: #ffffff;
+  }
+  .canvas-area.ruler-on {
+    grid-template-columns: 20px 1fr;
+    grid-template-rows: 20px 1fr auto;
+  }
+
+  .ruler-corner {
+    grid-area: 1 / 1 / 2 / 2;
+    background: #f1f3f4;
+    border-right: 1px solid #dadce0;
+    border-bottom: 1px solid #dadce0;
+  }
+  .ruler-h {
+    grid-area: 1 / 2 / 2 / 3;
+    background: #f1f3f4;
+    border-bottom: 1px solid #dadce0;
+    overflow: hidden;
+    position: relative;
+  }
+  .ruler-v {
+    grid-area: 2 / 1 / 3 / 2;
+    background: #f1f3f4;
+    border-right: 1px solid #dadce0;
+    overflow: hidden;
+    position: relative;
+  }
+  .ruler-on .ruler-corner,
+  .ruler-on .ruler-h,
+  .ruler-on .ruler-v { display: block; }
+  .ruler-corner, .ruler-h, .ruler-v { display: none; }
+
+  .canvas {
+    grid-area: 2 / 2 / 3 / 3;
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+    background-color: #ffffff;
+    background-image:
+      linear-gradient(to right, rgba(0,0,0,.075) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,.075) 1px, transparent 1px);
+    background-size: 10px 10px;
+  }
+  .canvas.no-grid { background-image: none; }
+  .page {
+    position: absolute;
+    left: 40px;
+    top: 26px;
+    width: 420px;
+    height: 297px;
+    background: #ffffff;
+    border: 1px solid #c7cbd1;
+    box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  }
+  .node {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #202124;
+    background: #ffffff;
+    border: 1.6px solid #5f6368;
+    border-radius: 2px;
+    cursor: move;
+    user-select: none;
+  }
+  .node.rounded { border-radius: 12px; }
+  .node.sel {
+    border-color: #167dff;
+    box-shadow: 0 0 0 1px #167dff inset;
+  }
+
+  .pagebar {
+    grid-area: 3 / 1 / 4 / 3;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-top: 1px solid #e3e5e8;
+    background: #fafafa;
+    font-size: 12px;
+  }
+  .page-tab {
+    padding: 2px 10px;
+    border-radius: 3px 3px 0 0;
+    border: 1px solid #dadce0;
+    border-bottom: none;
+    background: #f1f3f4;
+    color: #5f6368;
+    cursor: pointer;
+  }
+  .page-tab.active { background: #ffffff; color: #202124; }
+
+  /* 右侧固定宽度轨道：两个面板互斥 */
+  .rail {
+    flex: 0 0 300px;
+    width: 300px;
+    border-left: 1px solid #e3e5e8;
+    background: #fbfbfc;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .rail.hidden { display: none; }
+  .panel { flex: 1 1 auto; min-height: 0; display: none; flex-direction: column; }
+  .panel.active { display: flex; }
+  .fmt-tabs {
+    flex-shrink: 0;
+    display: flex;
+    border-bottom: 1px solid #e3e5e8;
+    background: #f7f8f9;
+  }
+  .fmt-tab {
+    flex: 1 1 auto;
+    padding: 8px 4px;
+    font-size: 12.5px;
+    text-align: center;
+    color: #5f6368;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .fmt-tab:hover { color: #202124; }
+  .fmt-tab.active { color: #167dff; border-bottom-color: #167dff; font-weight: 500; }
+  .fmt-body { flex: 1 1 auto; overflow: auto; padding: 10px 12px; }
+  .grp-title {
+    font-size: 12px;
+    color: #5f6368;
+    margin: 12px 0 6px;
+    padding-top: 10px;
+    border-top: 1px solid #eceef0;
+  }
+  .grp-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    font-size: 12.5px;
+    color: #202124;
+  }
+  .row.wide { gap: 8px; }
+  .row .label { flex: 1 1 auto; color: #3c4043; }
+  .row .label.w { flex: 0 0 76px; }
+  input[type=checkbox] { accent-color: #167dff; margin: 0; }
+  .num {
+    width: 46px;
+    padding: 2px 4px;
+    border: 1px solid #dadce0;
+    border-radius: 3px;
+    font-size: 12px;
+    text-align: right;
+  }
+  .spin { display: flex; flex-direction: column; margin-left: -4px; }
+  .spin button {
+    width: 14px; height: 9px; line-height: 1;
+    border: 1px solid #dadce0; background: #fff; padding: 0;
+    font-size: 8px; color: #5f6368; cursor: pointer;
+  }
+  .swatch {
+    width: 20px; height: 20px; border: 1px solid #dadce0; border-radius: 3px;
+    background: #fff; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center; color: #5f6368;
+  }
+  .link { color: #1a73e8; cursor: pointer; text-decoration: underline; font-size: 12.5px; }
+  select {
+    padding: 2px 4px; border: 1px solid #dadce0; border-radius: 3px;
+    font-size: 12px; background: #fff; color: #202124;
+  }
+  .radios { display: flex; gap: 12px; }
+  .radios label { display: flex; align-items: center; gap: 4px; font-size: 12.5px; }
+  .help {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 1px solid #9aa0a6; color: #80868b;
+    font-size: 10px; line-height: 13px; text-align: center; cursor: help;
+  }
+  .fmt-bottom {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid #e3e5e8;
+    background: #f7f8f9;
+  }
+  .btn {
+    flex: 1 1 auto;
+    padding: 5px 8px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 12.5px;
+    color: #3c4043;
+    cursor: pointer;
+  }
+  .btn:hover { background: #f1f3f4; }
+
+  /* ============ 视图下拉菜单 ============ */
+  .menu {
+    position: fixed;
+    z-index: 9999;
+    min-width: 232px;
+    padding: 6px 0;
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.16);
+    display: none;
+    font-size: 13.5px;
+    color: #202124;
+  }
+  .menu.open { display: block; }
+  .mi {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 14px 0 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .mi:hover { background: #f1f3f4; }
+  .mi .tick {
+    flex: 0 0 20px;
+    text-align: center;
+    font-size: 14px;
+    color: #202124;
+    visibility: hidden;
+  }
+  .mi.checked .tick { visibility: visible; }
+  .mi .txt { flex: 1 1 auto; }
+  .mi .accel { flex: 0 0 auto; margin-left: 28px; color: #3c4043; font-size: 13px; }
+  .mi .todo {
+    flex: 0 0 auto;
+    margin-left: 10px;
+    font-size: 10.5px;
+    line-height: 15px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: #fce8e6;
+    color: #c5221f;
+  }
+  .mi.disabled { color: #bdc1c6; cursor: default; }
+  .mi.disabled .accel { color: #bdc1c6; }
+  .mi.disabled:hover { background: transparent; }
+  .menu .sep { height: 1px; background: #e3e5e8; margin: 6px 0; }
+
+  /* ============ 原型说明条（不属于插件 UI） ============ */
+  .proto-footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: #202124;
+    color: #e8eaed;
+    font-size: 12px;
+  }
+  .proto-footer b { color: #fff; font-weight: 600; }
+  .proto-footer .sp { flex: 1 1 auto; }
+  .seg { display: flex; border: 1px solid #5f6368; border-radius: 4px; overflow: hidden; }
+  .seg button {
+    border: none; background: transparent; color: #e8eaed;
+    font-size: 11.5px; padding: 3px 10px; cursor: pointer;
+  }
+  .seg button.on { background: #8ab4f8; color: #202124; font-weight: 600; }
+  .state {
+    font-family: ui-monospace, Consolas, monospace;
+    color: #8ab4f8;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 工具栏 -->
+  <div class="toolbar" id="toolbar">
+    <!-- ★ 新增：最左侧「视图」按钮 -->
+    <button class="tb-btn view-btn hl" id="viewBtn" title="视图">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <rect x="3" y="4.5" width="15" height="15" rx="1.5"/>
+        <path d="M9.5 4.5v15"/>
+      </svg>
+      <svg class="chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
+      <span class="new-dot"></span>
+    </button>
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" title="撤销"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 0 3-7.7L3 8"/></svg></button>
+    <button class="tb-btn" title="重做"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M21 8a9 9 0 1 1-3-7.7L21 8"/></svg></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" title="放大"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg></button>
+    <button class="tb-btn" title="缩小"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg></button>
+    <button class="tb-btn" title="适应画布"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <button class="tb-btn" title="实际大小"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" title="删除"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    <button class="tb-btn" title="清空画布"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/><path d="M9 13h6"/></svg></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" title="导出"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
+    <button class="tb-btn" title="保存"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></button>
+  </div>
+
+  <div class="wrapper">
+    <!-- 左：形状面板 -->
+    <div class="palette" id="palette">
+      <div class="palette-title">通用</div>
+      <div class="palette-grid">
+        <div class="p-shape" title="矩形"><i></i></div>
+        <div class="p-shape" title="圆角矩形"><i class="round"></i></div>
+        <div class="p-shape" title="椭圆"><i class="oval"></i></div>
+        <div class="p-shape" title="胶囊"><i class="pill"></i></div>
+        <div class="p-shape" title="矩形"><i></i></div>
+        <div class="p-shape" title="圆角矩形"><i class="round"></i></div>
+        <div class="p-shape" title="椭圆"><i class="oval"></i></div>
+        <div class="p-shape" title="胶囊"><i class="pill"></i></div>
+      </div>
+      <div class="palette-title">流程图</div>
+      <div class="palette-grid">
+        <div class="p-shape" title="处理"><i></i></div>
+        <div class="p-shape" title="判断"><i class="round"></i></div>
+        <div class="p-shape" title="起止"><i class="pill"></i></div>
+        <div class="p-shape" title="连接"><i class="oval"></i></div>
+        <div class="p-shape" title="处理"><i></i></div>
+        <div class="p-shape" title="判断"><i class="round"></i></div>
+        <div class="p-shape" title="起止"><i class="pill"></i></div>
+        <div class="p-shape" title="连接"><i class="oval"></i></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- 中：画布区（含标尺） -->
+      <div class="canvas-area" id="canvasArea">
+        <div class="ruler-corner"></div>
+        <div class="ruler-h" id="rulerH"></div>
+        <div class="ruler-v" id="rulerV"></div>
+
+        <div class="canvas" id="canvas">
+          <div class="page" id="page"></div>
+          <div class="node rounded" id="n1" style="left:110px; top:90px;  width:120px; height:46px;">开始</div>
+          <div class="node"         id="n2" style="left:290px; top:90px;  width:120px; height:46px;">处理数据</div>
+          <div class="node rounded" id="n3" style="left:200px; top:210px; width:120px; height:46px;">结束</div>
+        </div>
+
+        <div class="pagebar">
+          <div class="page-tab active">第 1 页</div>
+          <div class="page-tab">第 2 页</div>
+          <div class="page-tab">+</div>
+          <div class="sp" style="flex:1"></div>
+        </div>
+      </div>
+
+      <!-- 右：固定 300px 轨道，两个面板互斥 -->
+      <div class="rail" id="rail">
+        <!-- 面板 A：无选中时显示 -->
+        <div class="panel active" id="panelA">
+          <div class="fmt-tabs">
+            <button class="fmt-tab active">绘图</button>
+            <button class="fmt-tab">样式</button>
+          </div>
+          <div class="fmt-body">
+            <div class="grp-title">查看</div>
+            <div class="row"><input type="checkbox" checked><span class="label">网格</span><input class="num" value="10"><span style="font-size:11.5px;color:#5f6368">pt</span></div>
+            <div class="row"><input type="checkbox" checked><span class="label">页面视图</span></div>
+            <div class="row wide"><span class="label w">背景</span><span class="link">更改…</span></div>
+            <div class="grp-title">选项</div>
+            <div class="row"><input type="checkbox" checked><span class="label">连接箭头</span></div>
+            <div class="row"><input type="checkbox" checked><span class="label">参考线</span></div>
+            <div class="grp-title">页面尺寸</div>
+            <div class="row wide">
+              <span class="label w">尺寸</span>
+              <select><option>A4</option><option>A5</option><option>A3</option><option>Letter</option><option>自定义…</option></select>
+            </div>
+            <div class="row wide radios">
+              <span class="label w">方向</span>
+              <label><input type="radio" name="ori" checked>竖向</label>
+              <label><input type="radio" name="ori">横向</label>
+            </div>
+          </div>
+          <div class="fmt-bottom">
+            <button class="btn">编辑数据…</button>
+            <button class="btn">清除默认风格</button>
+          </div>
+        </div>
+
+        <!-- 面板 B：选中图形时显示 -->
+        <div class="panel" id="panelB">
+          <div class="fmt-tabs">
+            <button class="fmt-tab active">样式</button>
+            <button class="fmt-tab">文本</button>
+            <button class="fmt-tab">排列</button>
+          </div>
+          <div class="fmt-body">
+            <div class="row wide"><span class="label w">自适应颜色</span>
+              <select><option>无</option><option>自动</option><option>色相</option><option>明度</option></select>
+              <span class="help">?</span>
+            </div>
+            <div class="row"><input type="checkbox"><span class="label">草图</span>
+              <select style="margin-left:auto"><option>圆角</option><option>直线</option></select>
+            </div>
+            <div class="grp-title">填充</div>
+            <div class="row"><button class="swatch"></button><span class="label">#ffffff</span></div>
+            <div class="grp-title">线条</div>
+            <div class="row"><button class="swatch"></button><span class="label">#5f6368</span>
+              <select><option>1 pt</option><option>2 pt</option><option>4 pt</option></select>
+            </div>
+          </div>
+          <div class="fmt-bottom">
+            <button class="btn">编辑样式…</button>
+            <button class="btn">编辑数据…</button>
+            <button class="btn">编辑链接…</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 视图菜单 -->
+<div class="menu" id="menu"></div>
+
+<!-- 原型说明条 -->
+<div class="proto-footer">
+  <b>原型说明：</b>
+  <span>右上红框即新增按钮的位置（工具栏最左）。点它出菜单，勾选项即时生效。</span>
+  <span class="sp"></span>
+  <span>当前状态：<span class="state" id="stateOut">形状=开 · 格式=开 · 标尺=关 · 选中=无</span></span>
+  <div class="seg">
+    <button id="modeAll" class="on">菜单 8 项</button>
+    <button id="modeImpl">仅 3 项</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- 菜单数据 ---------- */
+  // impl:true = 本次可直接实现；impl:false = 需要大功能，原型里先置灰
+  var ITEMS = [
+    { key: "shapes",  label: "形状",      accel: "Ctrl+Shift+K", checked: true,  impl: true,  toggle: true },
+    { key: "format",  label: "格式",      accel: "Ctrl+Shift+P", checked: true,  impl: true,  toggle: true },
+    { key: "ruler",   label: "标尺",      accel: "",            checked: false, impl: true,  toggle: true },
+    { sep: true },
+    { key: "find",    label: "查找/替换", accel: "Ctrl+F",       impl: false },
+    { key: "layers",  label: "图层",      accel: "Ctrl+Shift+L", impl: false },
+    { key: "tags",    label: "标签",      accel: "Ctrl+K",       impl: false },
+    { key: "outline", label: "缩略图",    accel: "Ctrl+Shift+O", impl: false }
+  ];
+
+  var state = { shapes: true, format: true, ruler: false, selection: false };
+  var menuMode = "all"; // all | impl
+
+  var viewBtn  = document.getElementById("viewBtn");
+  var menuEl   = document.getElementById("menu");
+  var palette  = document.getElementById("palette");
+  var rail     = document.getElementById("rail");
+  var area     = document.getElementById("canvasArea");
+  var stateOut = document.getElementById("stateOut");
+  var panelA   = document.getElementById("panelA");
+  var panelB   = document.getElementById("panelB");
+
+  /* ---------- 渲染菜单 ---------- */
+  function renderMenu() {
+    var list = menuMode === "all" ? ITEMS : ITEMS.filter(function (it) {
+      return it.sep || it.impl;
+    });
+    var html = "";
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      if (it.sep) { html += '<div class="sep"></div>'; continue; }
+      var cls = "mi";
+      if (it.toggle && state[it.key]) cls += " checked";
+      if (!it.impl) cls += " disabled";
+      html += '<div class="' + cls + '" data-key="' + it.key + '">' +
+                '<span class="tick">\u2713</span>' +
+                '<span class="txt">' + it.label + '</span>' +
+                (it.accel ? '<span class="accel">' + it.accel + '</span>' : "") +
+                (it.impl ? "" : '<span class="todo">未实现</span>') +
+              '</div>';
+    }
+    menuEl.innerHTML = html;
+    var nodes = menuEl.querySelectorAll(".mi");
+    for (var j = 0; j < nodes.length; j++) {
+      nodes[j].addEventListener("click", function (e) {
+        var key = e.currentTarget.getAttribute("data-key");
+        var def = null;
+        for (var k = 0; k < ITEMS.length; k++) { if (ITEMS[k].key === key) def = ITEMS[k]; }
+        if (!def || !def.impl) return; // 置灰项不响应
+        state[key] = !state[key];
+        apply();
+        renderMenu();
+      });
+    }
+  }
+
+  /* ---------- 应用状态 ---------- */
+  function apply() {
+    palette.classList.toggle("hidden", !state.shapes);
+    rail.classList.toggle("hidden", !state.format);
+    area.classList.toggle("ruler-on", !!state.ruler);
+    panelA.classList.toggle("active", !state.selection);
+    panelB.classList.toggle("active", state.selection);
+
+    stateOut.textContent =
+      "形状=" + (state.shapes ? "开" : "关") +
+      " · 格式=" + (state.format ? "开" : "关") +
+      " · 标尺=" + (state.ruler ? "开" : "关") +
+      " · 选中=" + (state.selection ? "有" : "无");
+  }
+
+  /* ---------- 标尺刻度 ---------- */
+  function drawRulers() {
+    var h = document.getElementById("rulerH");
+    var v = document.getElementById("rulerV");
+    if (!state.ruler) { h.innerHTML = ""; v.innerHTML = ""; return; }
+
+    // 每 10 模型单位一格；参照画布 10px 网格
+    var step = 10, major = 50;
+    var hw = area.clientWidth - 20, hh = area.clientHeight - 20;
+    var s = "";
+    for (var x = 0; x <= hw; x += step) {
+      var isMajor = x % major === 0;
+      s += '<div style="position:absolute;left:' + x + 'px;bottom:0;width:1px;height:' +
+           (isMajor ? 7 : 3) + 'px;background:#9aa0a6"></div>';
+      if (isMajor && x > 0) {
+        s += '<div style="position:absolute;left:' + (x + 3) + 'px;top:1px;font-size:9px;color:#80868b">' + x + '</div>';
+      }
+    }
+    h.innerHTML = s;
+
+    var s2 = "";
+    for (var y = 0; y <= hh; y += step) {
+      var isM = y % major === 0;
+      s2 += '<div style="position:absolute;top:' + y + 'px;right:0;height:1px;width:' +
+            (isM ? 7 : 3) + 'px;background:#9aa0a6"></div>';
+      if (isM && y > 0) {
+        s2 += '<div style="position:absolute;top:' + (y + 2) + 'px;left:2px;font-size:9px;color:#80868b">' + y + '</div>';
+      }
+    }
+    v.innerHTML = s2;
+  }
+
+  /* ---------- 菜单开合 ---------- */
+  function openMenu() {
+    var r = viewBtn.getBoundingClientRect();
+    menuEl.classList.add("open");
+    var mw = menuEl.offsetWidth, mh = menuEl.offsetHeight;
+    var left = r.left;
+    var top = r.bottom + 2;
+    if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+    if (top + mh > window.innerHeight - 8) top = r.top - mh - 2;
+    menuEl.style.left = Math.max(8, left) + "px";
+    menuEl.style.top = Math.max(8, top) + "px";
+    viewBtn.classList.add("is-open");
+    renderMenu();
+  }
+  function closeMenu() {
+    menuEl.classList.remove("open");
+    viewBtn.classList.remove("is-open");
+  }
+
+  viewBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (menuEl.classList.contains("open")) closeMenu(); else openMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!menuEl.contains(e.target) && e.target !== viewBtn) closeMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeMenu();
+  });
+
+  /* ---------- 画布：点空白 / 点图形 切换右侧面板 ---------- */
+  var canvas = document.getElementById("canvas");
+  var nodes = canvas.querySelectorAll(".node");
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].addEventListener("click", function (e) {
+      e.stopPropagation();
+      for (var j = 0; j < nodes.length; j++) nodes[j].classList.remove("sel");
+      e.currentTarget.classList.add("sel");
+      state.selection = true;
+      apply();
+    });
+  }
+  canvas.addEventListener("click", function () {
+    for (var j = 0; j < nodes.length; j++) nodes[j].classList.remove("sel");
+    state.selection = false;
+    apply();
+  });
+
+  /* ---------- 原型说明条的模式切换 ---------- */
+  var bAll = document.getElementById("modeAll");
+  var bImp = document.getElementById("modeImpl");
+  bAll.addEventListener("click", function () {
+    menuMode = "all"; bAll.classList.add("on"); bImp.classList.remove("on");
+    if (menuEl.classList.contains("open")) renderMenu();
+  });
+  bImp.addEventListener("click", function () {
+    menuMode = "impl"; bImp.classList.add("on"); bAll.classList.remove("on");
+    if (menuEl.classList.contains("open")) renderMenu();
+  });
+
+  window.addEventListener("resize", function () {
+    drawRulers();
+    closeMenu();
+  });
+
+  apply();
+  renderMenu();
+  drawRulers();
+  // 标尺开关后需要重绘
+  var _apply = apply;
+  apply = function () { _apply(); drawRulers(); };
+})();
+</script>
+</body>
+</html>

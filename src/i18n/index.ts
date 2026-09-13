@@ -244,6 +244,62 @@ const translations: Record<string, Record<string, string>> = {
     "diagram.editDataHint": "Edit the raw mxGraphModel of the current page. Applying reloads the page.",
     "diagram.editDataInvalid": "Invalid XML: a mxGraphModel node is required",
     "diagram.defaultStyleCleared": "Default style cleared",
+
+    // View menu (toolbar, leftmost button)
+    "view.menu": "View",
+    "view.shapesPalette": "Shapes",
+    "view.panelRail": "Format",
+    "view.ruler": "Ruler",
+    "view.find": "Find / Replace",
+    "view.layers": "Layers",
+    "view.tags": "Tags",
+    "view.minimap": "Outline",
+
+    // Find / replace tool window
+    "find.title": "Find / Replace",
+    "find.placeholder": "Find",
+    "find.replacePlaceholder": "Replace with",
+    "find.prev": "Previous match",
+    "find.next": "Next match",
+    "find.replace": "Replace",
+    "find.replaceAll": "Replace all",
+    "find.matchCase": "Match case",
+    "find.noResult": "No results",
+    "find.replacedCount": "Replaced {{count}} occurrence(s)",
+
+    // Layers tool window
+    "layers.title": "Layers",
+    "layers.defaultName": "Default layer",
+    "layers.layerName": "Layer {{n}}",
+    "layers.add": "New layer",
+    "layers.moveUp": "Move layer up",
+    "layers.moveDown": "Move layer down",
+    "layers.delete": "Delete layer",
+    "layers.deleteConfirm": "Click again to delete this layer and its shapes",
+    "layers.defaultLocked": "The default layer cannot be hidden or deleted",
+    "layers.visibility": "Show / hide layer",
+    "layers.lockState": "Lock / unlock layer",
+    "layers.show": "Show layer",
+    "layers.hide": "Hide layer",
+    "layers.lock": "Lock layer",
+    "layers.unlock": "Unlock layer",
+    "layers.deleted": "Deleted layer and {{count}} shape(s)",
+
+    // Tags tool window
+    "tags.title": "Tags",
+    "tags.selectedTitle": "Tags of selected shapes",
+    "tags.allTitle": "All tags",
+    "tags.placeholder": "Add a tag",
+    "tags.add": "Add",
+    "tags.remove": "Remove tag",
+    "tags.removeEverywhere": "Remove this tag from all shapes",
+    "tags.noSelection": "Select a shape to edit its tags",
+    "tags.noTags": "No tags on this selection",
+    "tags.none": "No tags in this diagram yet",
+    "tags.needSelection": "Select a shape first",
+
+    // Outline (minimap)
+    "minimap.title": "Outline",
   },
   "zh-cn": {
     "command.createDiagram": "新建图表",
@@ -486,6 +542,62 @@ const translations: Record<string, Record<string, string>> = {
     "diagram.editDataHint": "直接编辑当前页的 mxGraphModel，应用后重新加载当前页。",
     "diagram.editDataInvalid": "XML 无效：需要包含 mxGraphModel 节点",
     "diagram.defaultStyleCleared": "默认风格已清除",
+
+    // 视图菜单（工具栏最左侧按钮）
+    "view.menu": "视图",
+    "view.shapesPalette": "形状",
+    "view.panelRail": "格式",
+    "view.ruler": "标尺",
+    "view.find": "查找/替换",
+    "view.layers": "图层",
+    "view.tags": "标签",
+    "view.minimap": "缩略图",
+
+    // 查找 / 替换工具窗
+    "find.title": "查找/替换",
+    "find.placeholder": "查找",
+    "find.replacePlaceholder": "替换为",
+    "find.prev": "上一个",
+    "find.next": "下一个",
+    "find.replace": "替换",
+    "find.replaceAll": "全部替换",
+    "find.matchCase": "区分大小写",
+    "find.noResult": "无结果",
+    "find.replacedCount": "已替换 {{count}} 处",
+
+    // 图层工具窗
+    "layers.title": "图层",
+    "layers.defaultName": "默认图层",
+    "layers.layerName": "图层 {{n}}",
+    "layers.add": "新建图层",
+    "layers.moveUp": "上移一层",
+    "layers.moveDown": "下移一层",
+    "layers.delete": "删除图层",
+    "layers.deleteConfirm": "再点一次：删除该图层及其中的图形",
+    "layers.defaultLocked": "默认图层不能隐藏或删除",
+    "layers.visibility": "显示 / 隐藏图层",
+    "layers.lockState": "锁定 / 解锁图层",
+    "layers.show": "显示图层",
+    "layers.hide": "隐藏图层",
+    "layers.lock": "锁定图层",
+    "layers.unlock": "解锁图层",
+    "layers.deleted": "已删除图层及其中 {{count}} 个图形",
+
+    // 标签工具窗
+    "tags.title": "标签",
+    "tags.selectedTitle": "选中图形的标签",
+    "tags.allTitle": "全部标签",
+    "tags.placeholder": "添加标签",
+    "tags.add": "添加",
+    "tags.remove": "移除标签",
+    "tags.removeEverywhere": "从所有图形上移除该标签",
+    "tags.noSelection": "选中图形后可编辑标签",
+    "tags.noTags": "该选中没有标签",
+    "tags.none": "当前图表还没有标签",
+    "tags.needSelection": "请先选中图形",
+
+    // 缩略图
+    "minimap.title": "缩略图",
   },
 };
 

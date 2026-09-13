@@ -4,12 +4,14 @@ import { DrawioSettingTab } from "./settings-tab";
 import {
   DEFAULT_SETTINGS,
   DrawioSettings,
+  LayerDef,
   MIN_PALETTE_WIDTH,
   MAX_PALETTE_WIDTH,
   MIN_GRID_SIZE,
   MAX_GRID_SIZE,
   MIN_PAGE_MM,
   MAX_PAGE_MM,
+  PanelGeometry,
 } from "./settings";
 import { t } from "./i18n";
 
@@ -207,11 +209,59 @@ export default class DrawioPlugin extends Plugin {
       "connectionArrows",
       "connectionPoints",
       "guides",
+      "viewShapesPalette",
+      "viewPanelRail",
+      "viewRuler",
+      "viewFind",
+      "viewLayers",
+      "viewTags",
+      "viewMinimap",
     ] as const) {
       if (typeof this.settings[key] !== "boolean") {
         (this.settings as unknown as Record<string, unknown>)[key] =
           DEFAULT_SETTINGS[key];
       }
+    }
+
+    // 浮动工具窗几何：必须是「id → 四个有限数字」的结构，脏值会让面板跑到屏幕外
+    if (
+      !this.settings.panelGeometry ||
+      typeof this.settings.panelGeometry !== "object" ||
+      Array.isArray(this.settings.panelGeometry)
+    ) {
+      this.settings.panelGeometry = {};
+    } else {
+      const clean: Record<string, PanelGeometry> = {};
+      for (const [id, geo] of Object.entries(this.settings.panelGeometry)) {
+        if (!geo || typeof geo !== "object") continue;
+        const nums = ["x", "y", "w", "h"].map((k) =>
+          Number((geo as unknown as Record<string, unknown>)[k])
+        );
+        if (!nums.every((v) => Number.isFinite(v))) continue;
+        clean[id] = { x: nums[0], y: nums[1], w: nums[2], h: nums[3] };
+      }
+      this.settings.panelGeometry = clean;
+    }
+
+    // 图层定义：过滤掉结构不合法的项，并保证 id 唯一（重复 id 会让归属判定错乱）
+    if (!Array.isArray(this.settings.layers)) {
+      this.settings.layers = [];
+    } else {
+      const seen = new Set<string>();
+      this.settings.layers = this.settings.layers
+        .filter((l) => l && typeof l === "object")
+        .filter((l) => {
+          if (typeof l.id !== "string" || !l.id) return false;
+          if (seen.has(l.id)) return false;
+          seen.add(l.id);
+          return true;
+        })
+        .map((l): LayerDef => ({
+          id: l.id,
+          name: typeof l.name === "string" && l.name ? l.name : l.id,
+          visible: l.visible !== false,
+          locked: l.locked === true,
+        }));
     }
   }
 

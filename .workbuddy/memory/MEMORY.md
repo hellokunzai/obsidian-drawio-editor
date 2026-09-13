@@ -25,11 +25,32 @@
 - 复制/创建副本/粘贴用 `graph.moveCells(cells, dx, dy, true, parent)`（clone=true 一步完成「克隆+平移+加入」，正确保留连线终点引用/组合子节点/边控制点）。
 - `mxGeometry.prototype.translate` 是**原地修改**（同时平移 x/y、sourcePoint、targetPoint、points）。
 
+## 锁定 / 显隐 / 容器的正确做法（v0.14.0 查证，踩坑级）
+- ⚠️ **`mxGraph.prototype.isCellLocked` 不读样式里的 `locked`**：它的实现只看全局 `this.cellsLocked` 与「relative geometry」。所以 draw.io 那种只写 `locked=1` 的样式**在本构建里不生效**。
+- 真正生效的是这五个样式键（`isCellMovable/Resizable/Rotatable/Deletable/Editable` 都读）：`movable` / `resizable` / `rotatable` / `deletable` / `editable`，锁定时写 `"0"`，解锁时写 `null`（`mxUtils.setStyle(str,key,null)` 会删掉该键）。`isCellSelectable` 本构建**不看样式**（只 `isCellsSelectable()` 全局），所以锁定后仍可被选中。
+- 隐藏图形用 **`mxGraphModel.prototype.setVisible(cell, bool)`**（存在、可撤销、`mxVisibleChange`），序列化进 XML 是 `<mxCell visible="0">` —— draw.io 原生格式，互通。`mxCell.setVisible` 也直接可用。
+- ⚠️ **mxGraph 只在 `window.resize` 时自动重算容器尺寸，没有任何 ResizeObserver**。所以容器自身尺寸变化（面板开关、标尺开关、palette 拖宽）**必须手动** `graph.sizeDidChange()` + `view.validate()`，否则 SVG 画布尺寸不跟着变、右下角画不了东西。
+- ⚠️ **`model.setStyle` 不去重**（与 `setVisible` 不同）→ 做「幂等重放」（如打开文件后重放图层锁定）时必须先用 `mxUtils.setStyle()` 拼出目标串、**比较不同才 setStyle**，否则每次打开文件都会产生脏标记并触发自动保存。
+- `mxUtils.getBoundingBox(state, rotation)` 返回的就是**容器像素**坐标（把传入 rect 绕中心旋转后取轴对齐外接矩形），与 `mxUtils.intersects(rect, bb)` 同口径。
+- ⚠️ **`mxOutline` 在本构建里存在，但不要用它做缩略图**：它平移走的是 `panGraph`（改 `panDx/panDy` + 移 canvas 的 style.left），而本插件全用 `view.scaleAndTranslate`（translate）平移，网格背景层与标尺也都是按 translate 算的 → 用 mxOutline 拖拽后网格/标尺会和内容错位。缩略图自绘 canvas、统一用 `scaleAndTranslate` 平移。
+
 ## 工作习惯
 - 改完代码必须跑 tsc + 构建，并同步升三处版本号（manifest.json / package.json / versions.json）。
 
-## 视图 DOM 结构（v0.13.0 起）
-- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container` + **`.drawio-pagebar`**，右侧 **`.drawio-panel-rail`**）。
+## 视图菜单与浮动工具窗（v0.14.0）
+- 工具栏**最左侧**是「视图」按钮（`.drawio-toolbar-btn.drawio-toolbar-viewbtn`，图标=左栏矩形 + 下拉箭头），点开自绘 DOM 菜单（`src/ViewMenu.ts`，挂 `document.body`、`position: fixed`，module 级 `activeMenu` 保证同时只开一个；勾选后**不关菜单**，原地重渲染）。7 项全部实现：形状 / 格式 / 标尺 / 查找替换 / 图层 / 标签 / 缩略图。**菜单里不显示任何快捷键**（用户明确要求，也没有绑定）。
+- 菜单项勾选状态 = `plugin.settings` 的 7 个布尔：`viewShapesPalette / viewPanelRail / viewRuler / viewFind / viewLayers / viewTags / viewMinimap`（默认前三项 true、后四项 false）。
+- `DrawioView.applyViewSettings()` 是唯一落点（幂等）：前两项给 `.drawio-palette` + `.drawio-palette-resize` / `.drawio-panel-rail` 加**已有的** `.drawio-hidden`（文件第 88 行就有，`display:none !important`，别重复定义）；标尺走 `ruler.setVisible()`；四个工具窗走 `syncToolPanel(panel, want)`（开/关与设置对齐）。最后统一 `resizeGraphToContainer()`。
+- `src/FloatingPanel.ts` 是**可复用的浮动工具窗基类**（查找替换/图层/标签/缩略图共用）：自绘标题栏拖动 + 右下 `.drawio-toolwin-grip` 缩放 + `ResizeObserver` 钳位（拖动时至少留 48px 可见）+ 几何写 `settings.panelGeometry[id] = {x,y,w,h}`。宿主接口只有 `getGeometry/setGeometry`。⚠️ 未拖动过的面板不落盘几何，每次按 `defaultX/defaultY`（可为 `"right"`/`"bottom"`）重算 → 设计上是有意的。
+- 标尺：绝对定位覆盖在 `.drawio-canvas-area` 上（该类为此加了 `position:relative`），打开时给 `.drawio-graph-container` 加 `margin:20px 0 0 20px`、给 `.drawio-pagebar` 加 `margin-left:20px`。竖标尺 `bottom:34px`（= `--drawio-pagebar-h`），否则盖住页面栏。刻度自适应：候选 `[1,2,5,10,20,25,50,100,200,250,500,1000,2000,5000]` 取第一个 `step*scale>=60px`，次刻度 = step/5（屏幕 <6px 不画）。
+- 图层：定义存 `settings.layers`（**默认层不在数组里**，id 为 `""`），cell 归属靠**样式键 `drawioLayer=<id>`**（跟着文件走）。显隐用 `model.setVisible`，锁定用五个样式键（见上）。面板**顶层在上**（倒序遍历），上移/下移改完数组要按「从后往前依次插到下标 0」重排子节点（`reorderCells`），顺序没变就不动模型。删除是**两步确认**（3 秒内再点一次），连带删除层内图形。新建图形自动打上「当前图层」标记（`addShape` 里 `assignLayer` + `applyLayerState`）。
+- 标签：样式键 `drawioTags`，多标签用 `|` 分隔。⚠️ 写入前必须 sanitize 掉 `;` `,`（会破坏样式串解析）与 `|`（分隔符本身）。
+- 缩略图：自绘 canvas。内容 / 纸面 / 视口矩形**全在「容器像素」坐标系**里算（`px = scale*(模型坐标+translate)`），点/拖小地图时换算回模型坐标再 `view.scaleAndTranslate` 平移。⚠️ 不要改用 `mxOutline`（原因见上）。
+- `applySettings()` 会调 `applyViewSettings()`，所以任何设置变更都会重算一次视图（含 `graph.sizeDidChange()`）——开销可接受，但要知道。
+
+## 视图 DOM 结构（v0.14.0 起）
+- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的；最左是「视图」按钮）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container` + **`.drawio-pagebar`** + `.drawio-ruler-corner/h/v` + 四个 `.drawio-toolwin`，右侧 **`.drawio-panel-rail`**）。
+- `.drawio-canvas-area` 有 `position: relative`（v0.14.0 加），标尺与浮动工具窗都挂它下面（`overflow:hidden`，所以面板会被裁，拖动钳位必须留在内部）。
 - `.drawio-panel-rail`（v0.13.0）固定 300px、`position:relative`，内含 `.drawio-diagram-panel`（新增的「绘图」面板）与 `.drawio-format-panel`（原格式面板）两个 `position:absolute; inset:0` 的兄弟节点，靠 `.drawio-collapsed`（= `display:none`）互斥。⚠️ 旧的 `margin-right:-300px` 滑出方案在轨道内失效（负 margin 只对 flex 最后一个子项有效），rail 规则里已覆盖成 `width:auto; margin-right:0; transition:none`；`.drawio-panel-rail > .drawio-collapsed` 必须排在 `.drawio-panel-rail > .drawio-format-panel` **之后**（同 0,2,0 特异性，靠顺序取胜）。
 - 页面栏放在 `.drawio-canvas-area` 内（不是 wrapper 下），所以其宽度天然等于画布区宽——左起形状面板右缘、右抵格式面板左缘，与 draw.io 一致。改成整宽的话要把它挪到 `.drawio-wrapper` 之后。
 - 改布局时注意：`.drawio-wrapper` 不能再写 `height:100%`，否则会顶出容器。
@@ -66,6 +87,7 @@
 - 毫米 → 页面单位：`Math.round(mm / 25.4 * 100)`（draw.io「1 英寸 = 100 单位」，A4 210×297mm → 827×1169，与 mxGraph 默认 pageFormat 一致）。
 
 ## 近期变更
+- v0.14.0（工具栏「视图」菜单 + 7 项功能）：工具栏最左侧新增「视图」按钮，菜单 7 项全部实现——形状 / 格式 / 标尺 / 查找替换 / 图层 / 标签 / 缩略图，**不显示也不绑定任何快捷键**。新增 7 个源文件：`ViewMenu.ts`、`FloatingPanel.ts`、`Ruler.ts`、`FindReplacePanel.ts`、`LayersPanel.ts`、`TagsPanel.ts`、`MinimapPanel.ts`；`settings.ts` 新增 7 个开关 + `panelGeometry` + `layers`（含 `LayerDef` / `PanelGeometry` 类型与 `DRAWIO_LAYER_STYLE_KEY` / `DRAWIO_TAGS_STYLE_KEY` 常量）。详见上文「视图菜单与浮动工具窗」与「锁定 / 显隐 / 容器的正确做法」。
 - v0.13.0（右侧新增「绘图」面板）：在 `.drawio-main` 里加 300px 固定轨道 `.drawio-panel-rail`，装两个互斥面板——新增的 `DrawPanel`（Tab = 绘图 | 样式，无选中图形时显示）与原 `FormatPanel`（选中图形时显示）。绘图 Tab 对齐 draw.io 的 Diagram 面板（查看 / 选项 / 页面尺寸 + 编辑数据 / 清除默认风格），样式 Tab 是整图级样式（自适应颜色 / 草图 / 圆角，作用于当前页所有图形）。新增 12 个全局设置项与中英各 30 条 i18n 文案。详见上文「绘图面板」「mxGraph 该构建的能力边界」。
 - v0.12.0（底部页面栏 / 多页 sheet）：新增 `src/PageBar.ts`（页签渲染与切换、+ 新建、双击行内重命名、⋮ / 活动页签 ^ / 右键页签 / 右侧空白右键共用一个菜单，含重命名·插入·复制·左移·右移·删除，拖拽重排带蓝线指示，仅一页时删除置灰，横向滚动并自动滚到活动页）；`DrawioView` 改为「页列表 + 活动页」模型，存取 `mxfile` 下多个 `<diagram>`；新增 `loadError` 禁止解析失败时自动覆盖原文件。详见上文「多页 / 页面栏」。
 - v0.11.2（格式面板去掉头部）：「格式」标题与折叠/关闭两个图标按钮整行删除，Tab 行成为面板首行；同时清理 3 个 i18n key 与 3 条 CSS 规则。

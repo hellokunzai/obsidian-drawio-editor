@@ -20,6 +20,8 @@ import { loadAllStencils } from "./stencil-loader";
 import {
   ScratchShape,
   DrawioSettings,
+  LayerDef,
+  PanelGeometry,
   MIN_PALETTE_WIDTH,
   MAX_PALETTE_WIDTH,
 } from "./settings";
@@ -29,6 +31,17 @@ import { t, tOr } from "./i18n";
 import { FormatPanel } from "./FormatPanel";
 import { DrawPanel, mmToPageUnits } from "./DrawPanel";
 import { PageBar } from "./PageBar";
+import {
+  ViewFeatureKey,
+  ViewMenu,
+  ViewMenuItem,
+} from "./ViewMenu";
+import { Ruler } from "./Ruler";
+import { FloatingPanelHost } from "./FloatingPanel";
+import { FindReplacePanel } from "./FindReplacePanel";
+import { DEFAULT_LAYER_ID, LayersPanel } from "./LayersPanel";
+import { TagsPanel } from "./TagsPanel";
+import { MinimapPanel } from "./MinimapPanel";
 
 export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
 /** 自绘流程图图标 id，在 main.ts 的 onload 里通过 addIcon 注册 */
@@ -43,6 +56,13 @@ interface DiagramPage {
   id: string;
   name: string;
   xml: string;
+}
+
+/** 浮动工具窗的最小接口：这里只关心开合 */
+interface ToolPanelLike {
+  isOpen(): boolean;
+  open(): void;
+  close(): void;
 }
 
 export class DrawioView extends FileView {
@@ -100,6 +120,23 @@ export class DrawioView extends FileView {
    */
   private loadError = false;
 
+  // ---- 视图菜单（工具栏最左侧按钮）及其功能面板 ----
+  /** 画布区容器：标尺与浮动工具窗都挂在这里（position: relative） */
+  private canvasAreaEl: HTMLElement | null = null;
+  /** 形状面板与它的拖拽把手，供「形状」开关整块隐藏 */
+  private paletteResizeEl: HTMLElement | null = null;
+  /** 右侧面板轨道，供「格式」开关整块隐藏 */
+  private railEl: HTMLElement | null = null;
+  private viewBtnEl: HTMLElement | null = null;
+  private viewMenu: ViewMenu | null = null;
+  private ruler: Ruler | null = null;
+  private findPanel: FindReplacePanel | null = null;
+  private layersPanel: LayersPanel | null = null;
+  private tagsPanel: TagsPanel | null = null;
+  private minimapPanel: MinimapPanel | null = null;
+  /** 当前图层 id（新建图形归入该层）；空串 = 默认图层 */
+  private currentLayerId: string = DEFAULT_LAYER_ID;
+
   constructor(leaf: WorkspaceLeaf, plugin: DrawioPlugin) {
     super(leaf);
     this.plugin = plugin;
@@ -152,11 +189,13 @@ export class DrawioView extends FileView {
 
     // 面板右缘拖拽把手
     const resizeHandle = wrapper.createDiv({ cls: "drawio-palette-resize" });
+    this.paletteResizeEl = resizeHandle;
     this.makePaletteResizable(resizeHandle);
 
     // Main area（横向：左侧画布区 + 右侧格式面板）
     const mainArea = wrapper.createDiv({ cls: "drawio-main" });
     const canvasArea = mainArea.createDiv({ cls: "drawio-canvas-area" });
+    this.canvasAreaEl = canvasArea;
     this.graphContainer = canvasArea.createDiv({ cls: "drawio-graph-container" });
 
     // 底部页面栏：宽度与画布区一致（右抵格式面板），与 draw.io 行为相同
@@ -166,10 +205,14 @@ export class DrawioView extends FileView {
     //   上/后者 = 原「格式」面板（选中图形时显示，默认折叠）
     //   前者    = 新增的「绘图」面板（无选中时显示）
     const rail = mainArea.createDiv({ cls: "drawio-panel-rail" });
+    this.railEl = rail;
     this.diagramPanelEl = rail.createDiv({ cls: "drawio-diagram-panel" });
     this.formatPanelEl = rail.createDiv({
       cls: "drawio-format-panel drawio-collapsed",
     });
+
+    // 视图菜单带来的东西：标尺（覆盖在画布区上）与四个浮动工具窗，都挂画布区
+    this.setupViewFeatures();
   }
 
   /** 构建底部页面栏，并把页面操作回抛到视图自身 */
@@ -574,6 +617,8 @@ export class DrawioView extends FileView {
   private addShape(shape: ShapeDef, x: number, y: number): void {
     const parent = this.graph.getDefaultParent();
     const isEdge = shape.id.startsWith("edge-");
+    /** 本次新建的顶层 cell，稍后统一打上「当前图层」标记 */
+    const created: any[] = [];
 
     if (isEdge) {
       this.graph.getModel().beginUpdate();
@@ -581,16 +626,25 @@ export class DrawioView extends FileView {
         const e1 = this.graph.insertVertex(parent, null, t("shape.edgeSource"), x, y, 60, 30, "rounded=1;whiteSpace=wrap;html=1;");
         const e2 = this.graph.insertVertex(parent, null, t("shape.edgeTarget"), x + 120, y + 80, 60, 30, "rounded=1;whiteSpace=wrap;html=1;");
         this.graph.insertEdge(parent, null, "", e1, e2, shape.style);
+        created.push(e1, e2);
       } finally {
         this.graph.getModel().endUpdate();
       }
     } else {
       this.graph.getModel().beginUpdate();
       try {
-        this.graph.insertVertex(parent, null, getShapeLabel(shape), x, y, shape.width, shape.height, shape.style);
+        created.push(
+          this.graph.insertVertex(parent, null, getShapeLabel(shape), x, y, shape.width, shape.height, shape.style)
+        );
       } finally {
         this.graph.getModel().endUpdate();
       }
+    }
+
+    // 新图形归入当前图层；该层若处于隐藏 / 锁定状态，新图形也要跟着
+    if (this.currentLayerId && this.layersPanel) {
+      this.layersPanel.assignLayer(created, this.currentLayerId);
+      this.layersPanel.applyLayerState(this.currentLayerId);
     }
 
     this.markDirty();
@@ -607,6 +661,18 @@ export class DrawioView extends FileView {
 
   private buildToolbar(parent: HTMLElement): void {
     const toolbar = parent.createDiv({ cls: "drawio-toolbar" });
+
+    // ★ 最左侧：视图菜单按钮（图标 + 下拉箭头），对齐 draw.io 顶部工具栏的第一个按钮
+    this.viewBtnEl = toolbar.createEl("button", {
+      cls: "drawio-toolbar-btn drawio-toolbar-viewbtn",
+      attr: { title: t("view.menu"), "aria-label": t("view.menu") },
+    });
+    this.viewBtnEl.innerHTML =
+      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">' +
+      '<rect x="3" y="4.5" width="15" height="15" rx="1.5"/><path d="M9.5 4.5v15"/></svg>' +
+      '<svg class="drawio-toolbar-viewbtn-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="m6 9 6 6 6-6"/></svg>';
+    toolbar.createDiv({ cls: "drawio-toolbar-sep" });
 
     interface ToolBtn {
       id?: string;
@@ -703,21 +769,29 @@ export class DrawioView extends FileView {
     this.graph.getModel().addListener(MxEvent.NOTIFY, undoListener);
     this.graph.getView().addListener(MxEvent.UNDO, undoListener);
 
-    // Auto-save tracking
+    // Auto-save tracking（顺带刷新依赖模型内容的工具窗）
     this.graph.getModel().addListener(MxEvent.CHANGE, () => {
       this.markDirty();
+      this.minimapPanel?.scheduleRender();
+      this.tagsPanel?.refresh();
+      this.layersPanel?.refresh();
+      this.findPanel?.refresh();
     });
 
-    // 自定义网格层需要跟随缩放 / 平移重算偏移
+    // 自定义网格层需要跟随缩放 / 平移重算偏移；标尺与缩略图同理
     const view = this.graph.getView();
-    const syncGrid = () => this.updateGridBackground();
+    const syncView = () => {
+      this.updateGridBackground();
+      this.ruler?.update(this.graph);
+      this.minimapPanel?.scheduleRender();
+    };
     for (const evtName of [
       MxEvent.SCALE,
       MxEvent.SCALE_AND_TRANSLATE,
       MxEvent.TRANSLATE,
       MxEvent.RESET,
     ]) {
-      if (evtName) view.addListener(evtName, syncGrid);
+      if (evtName) view.addListener(evtName, syncView);
     }
 
     // 面板到画布的拖放由 pointer 事件自建拖拽处理（见 makeShapeDraggable），
@@ -731,6 +805,8 @@ export class DrawioView extends FileView {
     this.setupFormatPanel();
     this.setupContextMenu();
     this.setupCanvasShortcuts();
+    this.attachViewFeatures();
+    this.applyViewSettings();
   }
 
   /**
@@ -843,6 +919,8 @@ export class DrawioView extends FileView {
       }
       // 两个面板互斥：选中图形时收起绘图面板，反之收起格式面板（其 hide 内已加类）
       this.diagramPanelEl?.classList.toggle("drawio-collapsed", hasSelection);
+      // 标签面板展示的是「选中图形的标签」，选择变化要跟着刷新
+      this.tagsPanel?.refresh();
     });
 
     // 初始：无选中 → 显示绘图面板
@@ -854,6 +932,182 @@ export class DrawioView extends FileView {
     Object.assign(this.plugin.settings, patch);
     void this.plugin.saveSettings();
     this.applyDiagramSettings();
+  }
+
+  // ============================================================ 视图菜单
+  // 工具栏最左侧「视图」按钮：形状 / 格式 / 标尺 / 查找替换 / 图层 / 标签 / 缩略图
+
+  /** 视图菜单项 ↔ 设置字段的映射 */
+  private static readonly VIEW_FEATURE_FIELDS: Record<
+    ViewFeatureKey,
+    keyof DrawioSettings
+  > = {
+    shapesPalette: "viewShapesPalette",
+    panelRail: "viewPanelRail",
+    ruler: "viewRuler",
+    find: "viewFind",
+    layers: "viewLayers",
+    tags: "viewTags",
+    minimap: "viewMinimap",
+  };
+
+  /**
+   * 创建标尺、四个浮动工具窗与视图菜单本身。
+   * 此时 mxGraph 还没建好，所以面板只搭 DOM，graph 由 attachViewFeatures() 注入。
+   */
+  private setupViewFeatures(): void {
+    const area = this.canvasAreaEl;
+    if (!area) return;
+
+    // 标尺：开关会改变画布容器尺寸，必须回头通知 mxGraph 重算
+    this.ruler = new Ruler(area, () => this.resizeGraphToContainer());
+
+    const host: FloatingPanelHost = {
+      getGeometry: (id) => this.plugin.settings.panelGeometry[id],
+      setGeometry: (id, geo) => this.patchPanelGeometry(id, geo),
+    };
+
+    this.findPanel = new FindReplacePanel(
+      area,
+      { ...host, markDirty: () => this.markDirty() },
+      () => this.toggleViewFeature("find")
+    );
+
+    this.layersPanel = new LayersPanel(
+      area,
+      {
+        ...host,
+        markDirty: () => this.markDirty(),
+        getLayers: () => this.plugin.settings.layers,
+        saveLayers: (layers) => this.saveLayers(layers),
+        getCurrentLayerId: () => this.currentLayerId,
+        setCurrentLayerId: (id) => {
+          this.currentLayerId = id;
+        },
+      },
+      () => this.toggleViewFeature("layers")
+    );
+
+    this.tagsPanel = new TagsPanel(
+      area,
+      { ...host, markDirty: () => this.markDirty() },
+      () => this.toggleViewFeature("tags")
+    );
+
+    this.minimapPanel = new MinimapPanel(area, { ...host }, () =>
+      this.toggleViewFeature("minimap")
+    );
+
+    if (this.viewBtnEl) {
+      this.viewMenu = new ViewMenu(this.viewBtnEl, () =>
+        this.buildViewMenuItems()
+      );
+    }
+  }
+
+  /** 菜单每次展开 / 勾选变化时按当前设置重建（勾选状态即设置值） */
+  private buildViewMenuItems(): ViewMenuItem[] {
+    const s = this.plugin.settings;
+    const make = (
+      key: ViewFeatureKey,
+      label: string,
+      checked: boolean,
+      separatorBefore = false
+    ): ViewMenuItem => ({
+      key,
+      label,
+      checked,
+      separatorBefore,
+      onToggle: () => this.toggleViewFeature(key),
+    });
+
+    return [
+      make("shapesPalette", t("view.shapesPalette"), s.viewShapesPalette),
+      make("panelRail", t("view.panelRail"), s.viewPanelRail),
+      make("ruler", t("view.ruler"), s.viewRuler),
+      make("find", t("view.find"), s.viewFind, true),
+      make("layers", t("view.layers"), s.viewLayers),
+      make("tags", t("view.tags"), s.viewTags),
+      make("minimap", t("view.minimap"), s.viewMinimap),
+    ];
+  }
+
+  /** 勾选 / 取消一个视图功能项：翻转设置、持久化并立刻生效 */
+  private toggleViewFeature(key: ViewFeatureKey): void {
+    const field = DrawioView.VIEW_FEATURE_FIELDS[key];
+    const settings = this.plugin.settings as unknown as Record<string, unknown>;
+    settings[field as string] = !settings[field as string];
+    void this.plugin.saveSettings();
+    this.applyViewSettings();
+  }
+
+  /** 把视图开关落到 DOM 与面板上（幂等，可反复调用） */
+  applyViewSettings(): void {
+    const s = this.plugin.settings;
+
+    // 形状面板与它的把手整块隐藏（display:none，画布自动吃掉这块宽度）
+    this.paletteEl?.toggleClass("drawio-hidden", !s.viewShapesPalette);
+    this.paletteResizeEl?.toggleClass("drawio-hidden", !s.viewShapesPalette);
+    // 右侧面板轨道整块隐藏
+    this.railEl?.toggleClass("drawio-hidden", !s.viewPanelRail);
+
+    this.ruler?.setVisible(!!s.viewRuler);
+
+    this.syncToolPanel(this.findPanel, s.viewFind);
+    this.syncToolPanel(this.layersPanel, s.viewLayers);
+    this.syncToolPanel(this.tagsPanel, s.viewTags);
+    this.syncToolPanel(this.minimapPanel, s.viewMinimap);
+
+    this.viewMenu?.refresh();
+    this.resizeGraphToContainer();
+  }
+
+  private syncToolPanel(panel: ToolPanelLike | null, want: boolean): void {
+    if (!panel) return;
+    if (want && !panel.isOpen()) panel.open();
+    else if (!want && panel.isOpen()) panel.close();
+  }
+
+  /** 把 graph 注入各工具窗（在 initGraphEditor 之后调用） */
+  private attachViewFeatures(): void {
+    if (!this.graph) return;
+    this.findPanel?.setGraph(this.graph);
+    this.layersPanel?.setGraph(this.graph);
+    this.tagsPanel?.setGraph(this.graph);
+    this.minimapPanel?.setGraph(this.graph);
+
+    // 图层显隐 / 锁定是「层」级别的状态，最终落在每个 cell 上，打开文件后整层重放一次
+    this.layersPanel?.applyAllLayerStates();
+  }
+
+  /**
+   * mxGraph 只在 window.resize 时自动重算容器尺寸，容器自身变化
+   * （形状面板 / 面板轨道开关、标尺开关）必须手动通知它。
+   */
+  private resizeGraphToContainer(): void {
+    if (!this.graph) return;
+    try {
+      this.graph.sizeDidChange();
+      const view = this.graph.getView();
+      if (view && typeof view.validate === "function") view.validate();
+    } catch (err) {
+      console.error("Error resizing graph:", err);
+    }
+    this.updateGridBackground();
+    this.ruler?.update(this.graph);
+    this.minimapPanel?.scheduleRender();
+  }
+
+  /** 浮动工具窗拖动 / 缩放后落盘几何信息（只存 UI 状态，不惊动 mxGraph） */
+  private patchPanelGeometry(id: string, geo: PanelGeometry): void {
+    this.plugin.settings.panelGeometry[id] = geo;
+    void this.plugin.saveData(this.plugin.settings);
+  }
+
+  /** 图层面板改动定义后落盘（图层的显隐 / 锁定由面板自己重放到模型上） */
+  private saveLayers(layers: LayerDef[]): void {
+    this.plugin.settings.layers = layers;
+    void this.plugin.saveData(this.plugin.settings);
   }
 
   /**
@@ -1859,6 +2113,7 @@ export class DrawioView extends FileView {
     const consts = mxConstants();
 
     this.applyDiagramSettings();
+    this.applyViewSettings();
 
     const edgeStyle = this.graph.getStylesheet().getDefaultEdgeStyle();
     if (settings.defaultEdgeStyle === "straight") {
@@ -2034,9 +2289,17 @@ export class DrawioView extends FileView {
     if (this.undoManager && typeof this.undoManager.clear === "function") {
       this.undoManager.clear();
     }
+    // 图层显隐 / 锁定要重新落到新页的图形上（幂等，没变化时不会产生脏标记）
+    this.layersPanel?.applyAllLayerStates();
     this.updateGridBackground();
     // 换页后「绘图 / 样式」面板要重新回填（阴影 / 草图 / 圆角等跟随当前页内容）
     this.drawPanel?.refresh();
+    // 依赖当前页内容的工具窗同步刷新
+    this.layersPanel?.refresh();
+    this.tagsPanel?.refresh();
+    this.findPanel?.refresh();
+    this.minimapPanel?.scheduleRender();
+    this.ruler?.update(this.graph);
   }
 
   /** 切换页面 */
@@ -2404,6 +2667,19 @@ export class DrawioView extends FileView {
       this.ctxMenuEl.remove();
       this.ctxMenuEl = null;
     }
+    // 视图菜单与四个浮动工具窗：菜单挂在 body 上，必须显式销毁
+    this.viewMenu?.destroy();
+    this.viewMenu = null;
+    this.findPanel?.destroy();
+    this.findPanel = null;
+    this.layersPanel?.destroy();
+    this.layersPanel = null;
+    this.tagsPanel?.destroy();
+    this.tagsPanel = null;
+    this.minimapPanel?.destroy();
+    this.minimapPanel = null;
+    this.ruler?.destroy();
+    this.ruler = null;
     if (this.pageBar) {
       this.pageBar.destroy();
       this.pageBar = null;
@@ -2414,6 +2690,11 @@ export class DrawioView extends FileView {
     }
     this.undoManager = null;
     this.paletteEl = null;
+    this.paletteResizeEl = null;
+    this.railEl = null;
+    this.canvasAreaEl = null;
+    this.viewBtnEl = null;
+    this.currentLayerId = DEFAULT_LAYER_ID;
     this.graphContainer = null;
     this.formatPanel = null;
     this.formatPanelEl = null;

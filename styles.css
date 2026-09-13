@@ -1419,3 +1419,609 @@ body.drawio-palette-resizing {
   margin: 4px 12px;
   background: var(--background-modifier-border);
 }
+
+/* ============================================================
+   视图菜单（工具栏最左侧按钮）
+   ============================================================ */
+
+.drawio-toolbar-viewbtn {
+  width: 42px;
+  gap: 1px;
+}
+
+.drawio-toolbar-viewbtn-chev {
+  opacity: 0.7;
+}
+
+.drawio-toolbar-viewbtn.is-open {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 菜单挂 body、position: fixed —— 挂视图内部会被画布容器裁掉 */
+.drawio-viewmenu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  padding: 5px 0;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.drawio-viewmenu-item {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px 0 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.drawio-viewmenu-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-viewmenu-tick {
+  flex: 0 0 20px;
+  text-align: center;
+  font-size: 13px;
+  visibility: hidden;
+}
+
+.drawio-viewmenu-item.is-checked .drawio-viewmenu-tick {
+  visibility: visible;
+}
+
+.drawio-viewmenu-text {
+  flex: 1 1 auto;
+}
+
+.drawio-viewmenu-sep {
+  height: 1px;
+  margin: 5px 0;
+  background: var(--background-modifier-border);
+}
+
+/* 视图菜单的「形状 / 格式」开关复用文件开头已有的 .drawio-hidden
+   （display: none !important，够强，不需要在这里重复定义） */
+
+/* ============================================================
+   画布标尺
+   标尺绝对定位覆盖在画布区上；打开时给画布容器加上/左 20px 外边距，
+   把画布真正挤进去，标尺就不会遮住内容。
+   ============================================================ */
+
+.drawio-canvas-area {
+  position: relative;
+}
+
+.drawio-ruler-corner,
+.drawio-ruler-h,
+.drawio-ruler-v {
+  position: absolute;
+  display: none;
+  z-index: 6;
+  background: var(--background-secondary);
+  color: var(--text-faint);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.drawio-ruler-corner {
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-right: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.drawio-ruler-h {
+  top: 0;
+  left: 20px;
+  right: 0;
+  height: 20px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* bottom: 34px = --drawio-pagebar-h，竖标尺到页面栏为止，别盖住它 */
+.drawio-ruler-v {
+  top: 20px;
+  left: 0;
+  bottom: 34px;
+  width: 20px;
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.drawio-canvas-area.drawio-ruler-on .drawio-ruler-corner,
+.drawio-canvas-area.drawio-ruler-on .drawio-ruler-h,
+.drawio-canvas-area.drawio-ruler-on .drawio-ruler-v {
+  display: block;
+}
+
+.drawio-canvas-area.drawio-ruler-on .drawio-graph-container {
+  margin-top: 20px;
+  margin-left: 20px;
+}
+
+.drawio-canvas-area.drawio-ruler-on .drawio-pagebar {
+  margin-left: 20px;
+}
+
+.drawio-ruler-tick {
+  position: absolute;
+  background: var(--background-modifier-border);
+}
+
+.drawio-ruler-h .drawio-ruler-tick {
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+}
+
+.drawio-ruler-v .drawio-ruler-tick {
+  right: 0;
+  width: 4px;
+  height: 1px;
+}
+
+.drawio-ruler-tick-major {
+  background: var(--text-faint);
+}
+
+.drawio-ruler-h .drawio-ruler-tick-major {
+  height: 7px;
+}
+
+.drawio-ruler-v .drawio-ruler-tick-major {
+  width: 7px;
+}
+
+.drawio-ruler-label {
+  position: absolute;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+/* ============================================================
+   浮动工具窗（查找替换 / 图层 / 标签 / 缩略图）
+   找出这四个功能在 draw.io 里都是可拖动、可关闭、记位置的工具窗，
+   行为一致，所以抽成一个基类，这里只有一套壳的样式。
+   ============================================================ */
+
+.drawio-toolwin {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 20;
+  font-size: 12.5px;
+  color: var(--text-normal);
+}
+
+.drawio-toolwin-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: move;
+  user-select: none;
+}
+
+.drawio-toolwin-title {
+  flex: 1 1 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawio-toolwin-close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drawio-toolwin-close:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-toolwin-close svg {
+  pointer-events: none;
+}
+
+.drawio-toolwin-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 缩略图要把画布铺满，去掉内边距 */
+.drawio-toolwin-body.drawio-toolwin-body-flush {
+  padding: 0;
+  gap: 0;
+}
+
+.drawio-toolwin-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+}
+
+.drawio-toolwin-grip::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--background-modifier-border);
+  border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.drawio-toolwin-dragging {
+  user-select: none;
+}
+
+/* ---------------- 查找 / 替换 ---------------- */
+
+.drawio-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawio-find-row-flat {
+  margin-top: 2px;
+}
+
+.drawio-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.drawio-find-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.drawio-find-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drawio-find-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-find-btn-text {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.drawio-find-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* ---------------- 图层 ---------------- */
+
+.drawio-layers-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.drawio-layers-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.drawio-layers-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-layers-row.is-current {
+  background: var(--background-modifier-active-hover);
+  box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+
+.drawio-layers-row.is-pending-delete .drawio-layers-name {
+  color: var(--text-error, #e24b4a);
+}
+
+.drawio-layers-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drawio-layers-icon:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-layers-icon.is-off {
+  color: var(--text-faint);
+  opacity: 0.55;
+}
+
+.drawio-layers-icon.is-on {
+  color: var(--text-normal);
+}
+
+.drawio-layers-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.drawio-layers-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.drawio-layers-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 1px 4px;
+  font-size: 12.5px;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 3px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.drawio-layers-footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.drawio-layers-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drawio-layers-btn:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.drawio-layers-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 删除是两步确认，第二次点击时按钮变红 */
+.drawio-layers-btn.is-confirming {
+  color: var(--text-on-accent, #fff);
+  background: var(--text-error, #e24b4a);
+  border-color: var(--text-error, #e24b4a);
+}
+
+/* ---------------- 标签 ---------------- */
+
+.drawio-tags-section {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.drawio-tags-chips {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 20px;
+}
+
+.drawio-tags-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 3px 1px 8px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  font-size: 11.5px;
+  color: var(--text-normal);
+}
+
+.drawio-tags-chipdel {
+  flex: 0 0 auto;
+  padding: 0 3px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawio-tags-chipdel:hover {
+  color: var(--text-error, #e24b4a);
+}
+
+.drawio-tags-add {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+}
+
+.drawio-tags-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.drawio-tags-addbtn {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.drawio-tags-addbtn:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-tags-addbtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.drawio-tags-all {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.drawio-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.drawio-tags-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-tags-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawio-tags-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.drawio-tags-empty {
+  padding: 2px 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ---------------- 缩略图 ---------------- */
+
+.drawio-minimap-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: block;
+  cursor: crosshair;
+  background: var(--background-primary-alt, var(--background-primary));
+}

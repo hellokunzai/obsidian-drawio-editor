@@ -19,6 +19,34 @@ export interface ScratchShape {
   isEdge: boolean;
 }
 
+/** 浮动工具窗（查找替换 / 图层 / 标签 / 缩略图）的位置与尺寸 */
+export interface PanelGeometry {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * 图层定义。图层本身不写进 `.drawio` 文件（本版 mxGraphModel 没有图层概念），
+ * 存在插件设置里；cell 的归属靠样式键 `drawioLayer=<id>` 标记，
+ * 该键会被原样保留在文件里，所以「哪几个图形属于哪一层」是可跨会话还原的。
+ */
+export interface LayerDef {
+  id: string;
+  name: string;
+  /** 该层是否显示（落到每个 cell 的 `visible` 属性上） */
+  visible: boolean;
+  /** 该层是否锁定（落到每个 cell 的 movable/resizable/… 样式键上） */
+  locked: boolean;
+}
+
+/** cell 归属图层的样式键（空 = 默认图层） */
+export const DRAWIO_LAYER_STYLE_KEY = "drawioLayer";
+/** cell 携带标签的样式键，多个标签用 | 分隔（不能含 ; , =） */
+export const DRAWIO_TAGS_STYLE_KEY = "drawioTags";
+export const DRAWIO_TAG_SEP = "|";
+
 export interface DrawioSettings {
   /** 停止编辑后自动把改动写回文件 */
   autoSave: boolean;
@@ -58,6 +86,26 @@ export interface DrawioSettings {
   connectionPoints: boolean;
   /** 拖拽时是否显示对齐参考线 */
   guides: boolean;
+
+  // ---- 视图菜单（工具栏最左侧的「视图」按钮）----
+  /** 显示左侧形状面板 */
+  viewShapesPalette: boolean;
+  /** 显示右侧面板轨道（绘图 / 格式） */
+  viewPanelRail: boolean;
+  /** 显示画布标尺 */
+  viewRuler: boolean;
+  /** 显示查找/替换工具窗 */
+  viewFind: boolean;
+  /** 显示图层工具窗 */
+  viewLayers: boolean;
+  /** 显示标签工具窗 */
+  viewTags: boolean;
+  /** 显示缩略图工具窗 */
+  viewMinimap: boolean;
+  /** 各浮动工具窗的位置与尺寸，键为面板 id */
+  panelGeometry: Record<string, PanelGeometry>;
+  /** 用户自建图层（默认图层不在此列，始终存在于最底层） */
+  layers: LayerDef[];
 }
 
 export const DEFAULT_SETTINGS: DrawioSettings = {
@@ -80,6 +128,16 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   connectionArrows: true,
   connectionPoints: true,
   guides: true,
+
+  viewShapesPalette: true,
+  viewPanelRail: true,
+  viewRuler: false,
+  viewFind: false,
+  viewLayers: false,
+  viewTags: false,
+  viewMinimap: false,
+  panelGeometry: {},
+  layers: [],
 };
 
 export const MIN_AUTOSAVE_DELAY = 200;
@@ -92,3 +150,6 @@ export const MAX_GRID_SIZE = 200;
 /** 页面尺寸取值范围（毫米） */
 export const MIN_PAGE_MM = 10;
 export const MAX_PAGE_MM = 5000;
+/** 浮动工具窗的最小尺寸（像素） */
+export const MIN_PANEL_W = 160;
+export const MIN_PANEL_H = 90;
