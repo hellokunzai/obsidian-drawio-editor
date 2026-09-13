@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Drawio 底部页面栏原型</title>
+<style>
+  :root {
+    /* 取自用户实际主题（Catppuccin Latte）的取色 */
+    --bg: #eff1f5;
+    --chrome: #dce0e8;
+    --surface-2: #e6e9ef;
+    --border: #ccd0da;
+    --text: #4c4f69;
+    --text-muted: #6c6f85;
+    --text-faint: #9ca0b0;
+    --accent: #167dff;
+    --hover: #dce0e8;
+    --pagebar-h: 34px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ---------- Obsidian 视图标头（仅作上下文，不可交互） ---------- */
+  .view-header {
+    height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+    padding: 0 10px; background: var(--bg); border-bottom: 1px solid var(--border);
+    color: var(--text-muted); font-size: 12px;
+  }
+  .view-header .ghost-btn {
+    width: 26px; height: 26px; border: none; background: transparent; border-radius: 5px;
+    color: var(--text-muted); cursor: default; display: flex; align-items: center; justify-content: center;
+  }
+  .view-header .title { flex: 1; text-align: center; color: var(--text); }
+  .view-header .dummy { width: 26px; }
+
+  /* ---------- 顶部工具栏（横跨整宽，v0.11.1 布局） ---------- */
+  .toolbar {
+    height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 8px;
+    background: var(--surface-2); border-bottom: 1px solid var(--border);
+  }
+  .tb-btn {
+    width: 30px; height: 30px; border: none; border-radius: 5px; background: transparent;
+    color: var(--text-muted); cursor: default; display: flex; align-items: center; justify-content: center;
+  }
+  .tb-btn:hover { background: var(--hover); color: var(--text); }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+  /* ---------- 主体三栏 ---------- */
+  .body { flex: 1 1 auto; min-height: 0; display: flex; }
+
+  /* 左：形状面板 */
+  .palette {
+    width: 180px; flex-shrink: 0; background: var(--surface-2);
+    border-right: 1px solid var(--border); overflow-y: auto; padding: 8px 0;
+  }
+  .palette-search { padding: 0 8px 8px; }
+  .palette-search input {
+    width: 100%; height: 26px; padding: 3px 8px; font-size: 12px; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px; outline: none;
+  }
+  .palette-group { margin-bottom: 2px; }
+  .palette-group-title {
+    display: flex; align-items: center; gap: 5px; padding: 4px 12px; font-size: 11px;
+    font-weight: 600; letter-spacing: .05em; color: var(--text-muted); text-transform: uppercase;
+  }
+  .palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; padding: 0 6px; }
+  .palette-item {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; color: var(--text); cursor: grab;
+  }
+  .palette-item:hover { background: var(--hover); }
+  .palette-item svg { opacity: .8; }
+  .palette-item:hover svg { opacity: 1; }
+
+  /* 中：画布 + 底部页面栏 */
+  .center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .canvas {
+    flex: 1; position: relative; overflow: hidden; background: var(--bg);
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 19px, #e4e7ee 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, #e4e7ee 20px);
+    background-size: 20px 20px;
+  }
+  .node {
+    position: absolute; background: #fff; border: 1px solid #4c4f69; color: var(--text);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; user-select: none;
+  }
+  .node.round { border-radius: 12px; }
+  .cylinder { position: absolute; width: 86px; height: 64px; }
+  .selbox {
+    position: absolute; border: 1px solid #34c759; pointer-events: none;
+  }
+  .selbox .h { position: absolute; width: 7px; height: 7px; background: #fff; border: 1px solid #34c759; }
+  .canvas-hint {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    color: var(--text-faint); font-size: 12px; pointer-events: none;
+  }
+  .page-caption {
+    position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: var(--text-faint);
+  }
+
+  /* 右：格式面板（v0.11.2 起没有头部，Tab 即首行） */
+  .format { width: 280px; flex-shrink: 0; background: var(--surface-2); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+  .fmt-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .fmt-tab {
+    flex: 1; padding: 9px 0; border: none; background: transparent; font-size: 12px;
+    color: var(--text-muted); cursor: pointer; position: relative;
+  }
+  .fmt-tab.active { color: var(--accent); }
+  .fmt-tab.active::after {
+    content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 3px; background: var(--accent); border-radius: 2px 2px 0 0;
+  }
+  .fmt-body { flex: 1; overflow-y: auto; padding: 12px; }
+  .fmt-pane { display: none; }
+  .fmt-pane.active { display: block; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+  .swatch { aspect-ratio: 1.6; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+  .fmt-section { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  .fmt-section-title { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+  .fmt-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; }
+  .fmt-row label { display: flex; align-items: center; gap: 6px; min-width: 56px; }
+  .fmt-input {
+    flex: 1; height: 26px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 5px;
+    background: var(--bg); font-size: 12px; color: var(--text);
+  }
+  .fmt-colorbox { width: 26px; height: 22px; border: 1px solid var(--border); border-radius: 4px; flex-shrink: 0; }
+  .fmt-line-preview { flex: 1; height: 26px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); display: flex; align-items: center; padding: 0 8px; }
+  .fmt-line-preview i { display: block; width: 100%; height: 0; border-top: 2px solid #4c4f69; }
+  .effects { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .fmt-bottom { margin-top: auto; padding: 10px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .fmt-bottom button {
+    padding: 7px 0; border: 1px solid var(--border); border-radius: 5px; background: var(--bg);
+    font-size: 12px; color: var(--text); cursor: pointer;
+  }
+  .fmt-bottom button:hover { background: var(--hover); }
+
+  /* ---------- 底部页面栏（本次主角） ---------- */
+  .pagebar {
+    height: var(--pagebar-h); flex-shrink: 0;
+    display: flex; align-items: stretch;
+    background: var(--chrome);
+    border-top: 1px solid var(--border);
+    position: relative;
+  }
+  .pagebar.full-width { border-top: 1px solid var(--border); }
+
+  .pb-menu-btn {
+    width: 30px; flex-shrink: 0; border: none; background: transparent; color: var(--text-muted);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .pb-menu-btn:hover { background: var(--hover); color: var(--text); }
+
+  .pb-tabs { display: flex; align-items: stretch; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .pb-tabs::-webkit-scrollbar { height: 0; }
+
+  .pb-tab {
+    position: relative; display: flex; align-items: center; gap: 2px; flex: 0 0 auto;
+    padding: 0 8px 0 12px; height: 100%; border: none; background: transparent;
+    color: var(--text-muted); font-size: 12px; cursor: pointer; user-select: none;
+    border-right: 1px solid var(--border); touch-action: none;
+  }
+  .pb-tab:hover { background: rgba(0,0,0,.035); color: var(--text); }
+  .pb-tab.active {
+    background: var(--bg); color: var(--text); font-weight: 500;
+    border-right: 1px solid var(--border);
+  }
+  .pb-tab.active::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: var(--border);
+  }
+  .pb-tab.dragging { opacity: .65; background: var(--bg); border-radius: 5px; z-index: 5; }
+  .pb-tab .caret {
+    width: 16px; height: 16px; border: none; background: transparent; border-radius: 3px;
+    color: var(--text-muted); cursor: pointer; display: none; align-items: center; justify-content: center; padding: 0;
+  }
+  .pb-tab.active .caret { display: flex; }
+  .pb-tab .caret:hover { background: var(--hover); color: var(--text); }
+  .pb-tab .name { white-space: nowrap; }
+  .pb-tab input.rename {
+    width: 68px; height: 20px; font-size: 12px; padding: 0 4px; border: 1px solid var(--accent);
+    border-radius: 3px; background: #fff; color: var(--text); outline: none;
+  }
+
+  .pb-add {
+    width: 30px; flex-shrink: 0; border: none; background: transparent; color: var(--text-muted);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .pb-add:hover { background: var(--hover); color: var(--text); }
+  .pb-hint { flex: 1; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; font-size: 11px; color: var(--text-faint); }
+
+  .drop-indicator {
+    position: absolute; top: 4px; bottom: 4px; width: 2px; background: var(--accent);
+    border-radius: 1px; display: none; pointer-events: none;
+  }
+
+  /* ---------- 页面菜单 ---------- */
+  .menu {
+    position: fixed; z-index: 200; min-width: 168px; padding: 4px 0;
+    background: #fff; border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.16); font-size: 12px; display: none;
+  }
+  .menu.open { display: block; }
+  .menu-item { padding: 6px 16px; cursor: default; color: var(--text); white-space: nowrap; }
+  .menu-item:hover { background: var(--hover); }
+  .menu-item.disabled { color: var(--text-faint); pointer-events: none; }
+  .menu-item.danger { color: #e24b4a; }
+  .menu-item.danger:hover { background: rgba(226,75,74,.1); }
+  .menu-sep { height: 1px; margin: 4px 12px; background: var(--border); }
+  .menu-item .sc { margin-left: 16px; color: var(--text-faint); font-size: 11px; }
+
+  /* ---------- Obsidian 状态栏 ---------- */
+  .statusbar {
+    height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+    padding: 0 12px; background: var(--bg); border-top: 1px solid var(--border);
+    color: var(--text-muted); font-size: 11px;
+  }
+  .statusbar .proto-btn {
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+    border-radius: 5px; font-size: 11px; padding: 2px 8px; cursor: pointer;
+  }
+
+  /* ---------- 原型说明卡 ---------- */
+  .notes {
+    position: absolute; right: 12px; bottom: 12px; width: 306px; z-index: 60;
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.16); padding: 12px 14px; display: none;
+  }
+  .notes.open { display: block; }
+  .notes h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+  .notes ul { margin: 0 0 10px; padding-left: 16px; line-height: 1.75; font-size: 12px; color: var(--text-muted); }
+  .notes .switch-row { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--border); padding-top: 10px; font-size: 12px; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: none; background: var(--bg); color: var(--text-muted); font-size: 11px; padding: 4px 10px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="view-header">
+    <button class="ghost-btn">&#8592;</button>
+    <button class="ghost-btn">&#8594;</button>
+    <div class="title">未命名图表</div>
+    <button class="ghost-btn">&#8942;</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13"/></svg></button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M11 8v6M8 11h6"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 4v16M4 9h16"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h9l5 5v11H5z"/><path d="M9 13h6"/></svg></button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg></button>
+    <button class="tb-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h11l3 3v13H5z"/><path d="M9 12h6M9 16h4"/></svg></button>
+  </div>
+
+  <div class="body">
+    <div class="palette">
+      <div class="palette-search"><input placeholder="搜索形状" /></div>
+      <div class="palette-group">
+        <div class="palette-group-title"><span>&#9662;</span><span>基础形状</span></div>
+        <div class="palette-grid">
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2" y="3.5" width="12" height="9"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2" y="3.5" width="12" height="9" rx="2"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><ellipse cx="8" cy="8" rx="6" ry="4.5"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.24 2 5 2s5-.9 5-2V4"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M8 2.5 14 13H2z"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M8 2 14 8l-6 6-6-6z"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M5 3h6l3 5-3 5H5L2 8z"/></svg></div>
+          <div class="palette-item"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M6 4h8v8H6zM2 8h4"/></svg></div>
+        </div>
+      </div>
+      <div class="palette-group"><div class="palette-group-title"><span>&#9662;</span><span>连线</span></div></div>
+      <div class="palette-group"><div class="palette-group-title"><span>&#9662;</span><span>容器</span></div></div>
+      <div class="palette-group"><div class="palette-group-title"><span>&#9662;</span><span>流程图</span></div></div>
+      <div class="palette-group"><div class="palette-group-title"><span>&#9662;</span><span>UML</span></div></div>
+    </div>
+
+    <div class="center">
+      <div class="canvas" id="canvas">
+        <div class="page-caption" id="pageCaption"></div>
+      </div>
+
+      <div class="pagebar" id="pagebar">
+        <button class="pb-menu-btn" id="pbMenuBtn" title="页面">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </button>
+        <div class="pb-tabs" id="pbTabs"></div>
+        <button class="pb-add" id="pbAdd" title="新建页面">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <span class="pb-hint" id="pbHint"></span>
+        <div class="drop-indicator" id="dropIndicator"></div>
+      </div>
+    </div>
+
+    <div class="format">
+      <div class="fmt-tabs">
+        <button class="fmt-tab active" data-pane="style">样式</button>
+        <button class="fmt-tab" data-pane="text">文本</button>
+        <button class="fmt-tab" data-pane="arrange">排列</button>
+      </div>
+      <div class="fmt-body" style="padding-bottom:0">
+        <div class="fmt-pane active" data-pane="style">
+          <div class="swatches">
+            <div class="swatch" style="background:linear-gradient(135deg,#111 50%,#fff 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#2f6fe4 50%,#cfe4ff 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#1d9e75 50%,#d8f5ea 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#d68910 50%,#ffeccc 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#e24b4a 50%,#ffd9d8 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#8e5be8 50%,#eadcff 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#ba7517 50%,#fdeccd 50%)"></div>
+            <div class="swatch" style="background:linear-gradient(135deg,#185fa5 50%,#d3e6ff 50%)"></div>
+            <div class="swatch" style="background:#111"></div>
+            <div class="swatch" style="background:#2f6fe4"></div>
+            <div class="swatch" style="background:#1d9e75"></div>
+            <div class="swatch" style="background:#b32020"></div>
+          </div>
+          <div class="fmt-section">
+            <div class="fmt-section-title"><span>填充</span><span>&#9662;</span></div>
+            <div class="fmt-row"><label><input type="checkbox" /> 填充</label><span class="fmt-colorbox" style="background:#fff"></span></div>
+            <div class="fmt-row"><label><input type="checkbox" /> 渐变</label><select class="fmt-input"><option>向下</option><option>向上</option></select><span class="fmt-colorbox" style="background:#fff"></span></div>
+          </div>
+          <div class="fmt-section">
+            <div class="fmt-section-title"><span>线条</span><span>&#9662;</span></div>
+            <div class="fmt-row"><label><input type="checkbox" checked /> 线条</label><span class="fmt-colorbox" style="background:#111"></span></div>
+            <div class="fmt-row"><span class="fmt-line-preview"><i></i></span><span class="fmt-input" style="flex:0 0 62px;text-align:center">1 pt</span></div>
+          </div>
+          <div class="fmt-section">
+            <div class="fmt-section-title"><span>不透明度</span></div>
+            <div class="fmt-row"><span class="fmt-input" style="flex:0 0 90px">100 %</span></div>
+          </div>
+          <div class="fmt-section" style="border-bottom:none">
+            <div class="fmt-section-title"><span>效果</span><span>&#9662;</span></div>
+            <div class="effects" style="margin-top:8px">
+              <label><input type="checkbox" /> 圆角</label>
+              <label><input type="checkbox" /> 草图</label>
+              <label><input type="checkbox" /> 玻璃</label>
+              <label><input type="checkbox" /> 阴影</label>
+            </div>
+          </div>
+        </div>
+        <div class="fmt-pane" data-pane="text">
+          <div class="fmt-row"><label>字号</label><span class="fmt-input" style="flex:0 0 70px">12</span></div>
+          <div class="fmt-row"><label>对齐</label><span class="fmt-input">居中</span></div>
+        </div>
+        <div class="fmt-pane" data-pane="arrange">
+          <div class="fmt-row"><label>层级</label><span class="fmt-input">置于顶层</span></div>
+          <div class="fmt-row"><label>对齐</label><span class="fmt-input">水平居中</span></div>
+        </div>
+      </div>
+      <div class="fmt-bottom">
+        <button>编辑</button>
+        <button>复制样式</button>
+        <button>设置为默认样式</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>0 条反向链接</span>
+    <span>同步</span>
+    <span id="clock">14:56:23</span>
+    <button class="proto-btn" id="notesBtn">原型说明 / 交互清单</button>
+  </div>
+
+  <div class="notes" id="notes">
+    <h4>可点的交互（请逐项确认）</h4>
+    <ul>
+      <li>点页签切换页面，画布内容随页变化</li>
+      <li>点 <b>+</b> 新建一页（追加到末尾并激活）</li>
+      <li><b>双击页签</b>直接改名（Enter 确认 / Esc 取消）</li>
+      <li>点活动页签的 <b>^</b> 或右侧空白处的 <b>&#8942;</b> 弹菜单</li>
+      <li><b>右键页签</b>也弹同一个菜单</li>
+      <li><b>按住页签拖动</b>可重排顺序</li>
+      <li>只剩一页时「删除页面」置灰不可用</li>
+      <li>页签多于宽度时可横向滚动</li>
+    </ul>
+    <div class="switch-row">
+      <span>页面栏范围</span>
+      <div class="seg" id="rangeSeg">
+        <button data-mode="center" class="on">画布区</button>
+        <button data-mode="full">整宽</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="menu" id="menu"></div>
+
+<script>
+(function () {
+  var uid = 0;
+  function nextId() { return "page-" + (++uid) + "-" + Math.random().toString(36).slice(2, 6); }
+
+  var pages = [
+    { id: "p1", name: "第1页", kind: "db" },
+    { id: "p2", name: "第2页", kind: "flow" },
+    { id: "p3", name: "第3页", kind: "empty" }
+  ];
+  var activeId = "p1";
+  var renameTarget = null;
+
+  var canvas = document.getElementById("canvas");
+  var tabsEl = document.getElementById("pbTabs");
+  var pagebar = document.getElementById("pagebar");
+  var menuEl = document.getElementById("menu");
+  var hintEl = document.getElementById("pbHint");
+  var captionEl = document.getElementById("pageCaption");
+  var dropEl = document.getElementById("dropIndicator");
+
+  /* ---------- 页面内容（原型用假图形表示每页各自的内容） ---------- */
+  function canvasHTML(kind) {
+    if (kind === "db") {
+      return '<div class="node" style="left:215px;top:150px;width:86px;height:64px">\u6570\u636e\u5e93</div>' +
+        '<div class="cylinder" style="left:390px;top:150px">' +
+          '<svg viewBox="0 0 86 64" fill="none" stroke="#4c4f69"><ellipse cx="43" cy="11" rx="41" ry="10" fill="#fff"/><path d="M2 11v42c0 5.5 18.4 10 41 10s41-4.5 41-10V11" fill="#fff"/></svg>' +
+          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;padding-top:8px">\u5706\u67f1</div>' +
+        '</div>' +
+        '<div class="selbox" style="left:384px;top:144px;width:98px;height:76px">' +
+          '<span class="h" style="left:-4px;top:-4px"></span><span class="h" style="left:45px;top:-4px"></span><span class="h" style="left:94px;top:-4px"></span>' +
+          '<span class="h" style="left:-4px;top:34px"></span><span class="h" style="left:94px;top:34px"></span>' +
+          '<span class="h" style="left:-4px;top:72px"></span><span class="h" style="left:45px;top:72px"></span><span class="h" style="left:94px;top:72px"></span>' +
+        '</div>' +
+        '<div class="page-caption">\u6b64\u9875\u5185\u5bb9\u793a\u610f\uff1a\u6570\u636e\u5e93 + \u5706\u67f1\uff08\u4e0e\u4f60\u622a\u56fe\u4e00\u81f4\uff09</div>';
+    }
+    if (kind === "flow") {
+      return '<svg style="position:absolute;left:150px;top:110px" width="420" height="180" fill="none" stroke="#4c4f69">' +
+        '<rect x="0" y="20" width="100" height="44" rx="22" fill="#fff"/><text x="50" y="47" font-size="12" fill="#4c4f69" stroke="none" text-anchor="middle">\u5f00\u59cb</text>' +
+        '<rect x="160" y="20" width="100" height="44" fill="#fff"/><text x="210" y="47" font-size="12" fill="#4c4f69" stroke="none" text-anchor="middle">\u5904\u7406</text>' +
+        '<path d="M280 42h40l12 15-12 15h-40z" fill="#fff"/><text x="300" y="47" font-size="12" fill="#4c4f69" stroke="none" text-anchor="middle">\u5224\u65ad</text>' +
+        '<rect x="0" y="120" width="100" height="44" rx="6" fill="#fff"/><text x="50" y="147" font-size="12" fill="#4c4f69" stroke="none" text-anchor="middle">\u7ed3\u675f</text>' +
+        '<path d="M100 42h52" marker-end="url(#a)"/><path d="M260 42h22" marker-end="url(#a)"/><path d="M300 77v22H50v13" marker-end="url(#a)"/>' +
+        '<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#4c4f69" stroke-width="1.5"/></marker></defs>' +
+        '</svg>' +
+        '<div class="page-caption">\u6b64\u9875\u5185\u5bb9\u793a\u610f\uff1a\u7b2c\u4e8c\u9875\u81ea\u5df1\u7684\u6d41\u7a0b\u56fe\uff08\u4e92\u4e0d\u5f71\u54cd\uff09</div>';
+    }
+    return '<div class="canvas-hint">\u4ece\u5de6\u4fa7\u5f62\u72b6\u9762\u677f\u62d6\u62fd\u56fe\u5f62\u5230\u753b\u5e03\uff0c\u6216\u53cc\u51fb\u521b\u5efa\u56fe\u8868</div>' +
+      '<div class="page-caption">\u6b64\u9875\u5185\u5bb9\u793a\u610f\uff1a\u7a7a\u767d\u9875</div>';
+  }
+
+  /* ---------- 渲染 ---------- */
+  function renderCanvas() {
+    var page = findPage(activeId);
+    canvas.innerHTML = canvasHTML(page ? page.kind : "empty");
+    captionEl = document.getElementById("pageCaption");
+    var idx = indexOf(activeId);
+    captionEl.textContent = (page ? page.name : "") + "  \u00b7  \u5171 " + pages.length + " \u9875";
+  }
+
+  function renderTabs() {
+    tabsEl.innerHTML = "";
+    pages.forEach(function (p, i) {
+      var tab = document.createElement("button");
+      tab.className = "pb-tab" + (p.id === activeId ? " active" : "");
+      tab.dataset.id = p.id;
+      tab.dataset.idx = String(i);
+      tab.title = p.name;
+
+      var name = document.createElement("span");
+      name.className = "name";
+      name.textContent = p.name;
+      tab.appendChild(name);
+
+      if (p.id === activeId) {
+        var caret = document.createElement("button");
+        caret.className = "caret";
+        caret.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 15l6-6 6 6"/></svg>';
+        caret.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+        caret.addEventListener("click", function (e) {
+          e.stopPropagation();
+          openMenu(tab.getBoundingClientRect().left + 4, tab.getBoundingClientRect().bottom, p.id);
+        });
+        tab.appendChild(caret);
+      }
+
+      tabsEl.appendChild(tab);
+      if (p.id === activeId) {
+        requestAnimationFrame(function () {
+          var left = tab.offsetLeft, right = left + tab.offsetWidth;
+          if (left < tabsEl.scrollLeft) tabsEl.scrollLeft = left - 12;
+          else if (right > tabsEl.scrollLeft + tabsEl.clientWidth) tabsEl.scrollLeft = right - tabsEl.clientWidth + 12;
+        });
+      }
+    });
+    hintEl.textContent = pages.length + " \u9875";
+  }
+
+  function render() { renderTabs(); renderCanvas(); }
+
+  function findPage(id) { for (var i = 0; i < pages.length; i++) if (pages[i].id === id) return pages[i]; return null; }
+  function indexOf(id) { for (var i = 0; i < pages.length; i++) if (pages[i].id === id) return i; return -1; }
+
+  /* ---------- 页面操作 ---------- */
+  function nextPageName() {
+    var n = pages.length + 1;
+    var names = pages.map(function (p) { return p.name; });
+    while (names.indexOf("\u7b2c" + n + "\u9875") >= 0) n++;
+    return "\u7b2c" + n + "\u9875";
+  }
+
+  function addPage(afterIndex) {
+    var page = { id: nextId(), name: nextPageName(), kind: "empty" };
+    if (typeof afterIndex === "number") pages.splice(afterIndex + 1, 0, page);
+    else pages.push(page);
+    activeId = page.id;
+    render();
+  }
+
+  function duplicatePage(id) {
+    var i = indexOf(id);
+    if (i < 0) return;
+    var src = pages[i];
+    var copy = { id: nextId(), name: src.name + " \u526f\u672c", kind: src.kind };
+    pages.splice(i + 1, 0, copy);
+    activeId = copy.id;
+    render();
+  }
+
+  function deletePage(id) {
+    if (pages.length <= 1) return;
+    var i = indexOf(id);
+    if (i < 0) return;
+    pages.splice(i, 1);
+    if (activeId === id) activeId = pages[Math.min(i, pages.length - 1)].id;
+    render();
+  }
+
+  function movePage(id, delta) {
+    var i = indexOf(id);
+    var j = i + delta;
+    if (i < 0 || j < 0 || j >= pages.length) return;
+    var tmp = pages[i]; pages[i] = pages[j]; pages[j] = tmp;
+    render();
+  }
+
+  /* ---------- 菜单 ---------- */
+  function menuHTML(id) {
+    var i = indexOf(id);
+    var last = pages.length <= 1;
+    var items = [
+      { label: "\u91cd\u547d\u540d\u9875\u9762", act: "rename" },
+      { label: "\u63d2\u5165\u9875\u9762", act: "insert" },
+      { label: "\u590d\u5236\u9875\u9762", act: "dup" },
+      { sep: true },
+      { label: "\u5de6\u79fb\u4e00\u9875", act: "left", disabled: i === 0, sc: "" },
+      { label: "\u53f3\u79fb\u4e00\u9875", act: "right", disabled: i === pages.length - 1 },
+      { sep: true },
+      { label: "\u5220\u9664\u9875\u9762", act: "del", danger: true, disabled: last }
+    ];
+    var html = "";
+    items.forEach(function (it) {
+      if (it.sep) { html += '<div class="menu-sep"></div>'; return; }
+      html += '<div class="menu-item' + (it.disabled ? " disabled" : "") + (it.danger ? " danger" : "") +
+        '" data-act="' + it.act + '">' + it.label + (it.sc ? '<span class="sc">' + it.sc + '</span>' : "") + "</div>";
+    });
+    if (last) html += '<div class="menu-sep"></div><div class="menu-item disabled" style="font-size:11px">\u81f3\u5c11\u4fdd\u7559\u4e00\u9875</div>';
+    return html;
+  }
+
+  var menuTargetId = null;
+  function openMenu(x, y, pageId) {
+    menuTargetId = pageId;
+    menuEl.innerHTML = menuHTML(pageId);
+    menuEl.classList.add("open");
+    var w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+    menuEl.style.left = Math.min(x, window.innerWidth - w - 8) + "px";
+    menuEl.style.top = Math.max(8, y - h) + "px";
+    Array.prototype.forEach.call(menuEl.querySelectorAll(".menu-item[data-act]"), function (el) {
+      el.addEventListener("click", function () {
+        var act = el.dataset.act;
+        closeMenu();
+        if (act === "rename") startRename(menuTargetId);
+        else if (act === "insert") addPage(indexOf(menuTargetId));
+        else if (act === "dup") duplicatePage(menuTargetId);
+        else if (act === "del") deletePage(menuTargetId);
+        else if (act === "left") movePage(menuTargetId, -1);
+        else if (act === "right") movePage(menuTargetId, 1);
+      });
+    });
+  }
+  function closeMenu() { menuEl.classList.remove("open"); }
+  document.addEventListener("pointerdown", function (e) {
+    if (!menuEl.contains(e.target)) closeMenu();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
+
+  /* ---------- 重命名 ---------- */
+  function startRename(id) {
+    var i = indexOf(id);
+    if (i < 0) return;
+    renderTabs();
+    var tab = tabsEl.querySelector('.pb-tab[data-id="' + id + '"]');
+    if (!tab) return;
+    var nameEl = tab.querySelector(".name");
+    var input = document.createElement("input");
+    input.className = "rename";
+    input.value = pages[i].name;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+    var done = false;
+    function commit(ok) {
+      if (done) return;
+      done = true;
+      if (ok) {
+        var v = input.value.trim();
+        if (v) pages[i].name = v;
+      }
+      render();
+    }
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(true); }
+      else if (e.key === "Escape") { e.preventDefault(); commit(false); }
+    });
+    input.addEventListener("blur", function () { commit(true); });
+    input.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+  }
+
+  /* ---------- 页签：点击 / 右键 / 拖拽排序 ---------- */
+  var drag = null;
+  tabsEl.addEventListener("pointerdown", function (e) {
+    var tab = e.target.closest(".pb-tab");
+    if (!tab) return;
+    if (e.button !== 0) return;
+    drag = { id: tab.dataset.id, el: tab, startX: e.clientX, moved: false, idx: Number(tab.dataset.idx) };
+    tabsEl.setPointerCapture(e.pointerId);
+  });
+  tabsEl.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.startX;
+    if (!drag.moved && Math.abs(dx) > 4) {
+      drag.moved = true;
+      drag.el.classList.add("dragging");
+    }
+    if (!drag.moved) return;
+    drag.el.style.transform = "translateX(" + dx + "px)";
+    var rects = slots();
+    var slot = dropSlot(rects, e.clientX);
+    var pbLeft = pagebar.getBoundingClientRect().left;
+    var x = slot < rects.length
+      ? rects[slot].left
+      : (rects.length ? rects[rects.length - 1].right : tabsEl.getBoundingClientRect().left);
+    dropEl.style.display = "block";
+    dropEl.style.left = (x - pbLeft - 1) + "px";
+    dropEl.dataset.slot = String(slot);
+  });
+  function slots() {
+    return Array.prototype.slice.call(tabsEl.querySelectorAll(".pb-tab"))
+      .filter(function (t) { return !t.classList.contains("dragging"); })
+      .map(function (t) { return t.getBoundingClientRect(); });
+  }
+  // 插入位置 = 非拖拽页签里「中点位于光标左侧」的个数
+  function dropSlot(rects, x) {
+    var n = 0;
+    for (var i = 0; i < rects.length; i++) if (x > rects[i].left + rects[i].width / 2) n++;
+    return n;
+  }
+  tabsEl.addEventListener("pointerup", function (e) {
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    dropEl.style.display = "none";
+    if (d.moved) {
+      d.el.style.transform = "";
+      d.el.classList.remove("dragging");
+      var from = indexOf(d.id);
+      var removed = pages.splice(from, 1)[0];
+      var slot = Number(dropEl.dataset.slot || "0");
+      if (isNaN(slot)) slot = 0;
+      pages.splice(Math.max(0, Math.min(slot, pages.length)), 0, removed);
+      activeId = d.id;
+      render();
+    } else {
+      activeId = d.id;
+      render();
+    }
+  });
+  tabsEl.addEventListener("contextmenu", function (e) {
+    var tab = e.target.closest(".pb-tab");
+    if (!tab) return;
+    e.preventDefault();
+    activeId = tab.dataset.id;
+    render();
+    openMenu(e.clientX, e.clientY, tab.dataset.id);
+  });
+
+  document.getElementById("pbMenuBtn").addEventListener("click", function () {
+    var r = this.getBoundingClientRect();
+    openMenu(r.right + 2, r.top, activeId);
+  });
+  document.getElementById("pbAdd").addEventListener("click", function () { addPage(); });
+
+  /* ---------- 格式面板 Tab ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll(".fmt-tab"), function (t) {
+    t.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".fmt-tab"), function (x) { x.classList.remove("active"); });
+      t.classList.add("active");
+      Array.prototype.forEach.call(document.querySelectorAll(".fmt-pane"), function (x) { x.classList.remove("active"); });
+      document.querySelector('.fmt-pane[data-pane="' + t.dataset.pane + '"]').classList.add("active");
+    });
+  });
+
+  /* ---------- 原型说明卡 ---------- */
+  var notes = document.getElementById("notes");
+  document.getElementById("notesBtn").addEventListener("click", function () { notes.classList.toggle("open"); });
+  Array.prototype.forEach.call(document.querySelectorAll("#rangeSeg button"), function (b) {
+    b.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll("#rangeSeg button"), function (x) { x.classList.remove("on"); });
+      b.classList.add("on");
+      if (b.dataset.mode === "full") {
+        var sb = document.querySelector(".statusbar");
+        sb.parentNode.insertBefore(pagebar, sb);
+        pagebar.classList.add("full-width");
+      } else {
+        var center = document.querySelector(".center");
+        center.appendChild(pagebar);
+        pagebar.classList.remove("full-width");
+      }
+      render();
+    });
+  });
+
+  setInterval(function () {
+    var d = new Date();
+    document.getElementById("clock").textContent =
+      String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+  }, 1000);
+
+  render();
+})();
+</script>
+</body>
+</html>

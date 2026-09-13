@@ -23,10 +23,22 @@ import { MIN_PALETTE_WIDTH, MAX_PALETTE_WIDTH } from "./settings";
 import { inflate } from "pako";
 import { t, tOr } from "./i18n";
 import { FormatPanel } from "./FormatPanel";
+import { PageBar } from "./PageBar";
 
 export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
 /** 自绘流程图图标 id，在 main.ts 的 onload 里通过 addIcon 注册 */
 export const DRAWIO_ICON_ID = "drawio-diagram";
+
+/**
+ * 一个页面：对应 `.drawio` 文件里 `<mxfile>` 下的一个 `<diagram>` 节点。
+ * `xml` 保存该页的 `<mxGraphModel>` 序列化文本（未压缩），
+ * 非活动页的模型就静静躺在这里，切换时再解码回画布。
+ */
+interface DiagramPage {
+  id: string;
+  name: string;
+  xml: string;
+}
 
 export class DrawioView extends FileView {
   plugin: DrawioPlugin;
@@ -66,6 +78,19 @@ export class DrawioView extends FileView {
   /** 便签本分组在形状面板中的引用，便于新增后原地刷新 */
   private scratchSectionEl: HTMLElement | null = null;
   private scratchGridEl: HTMLElement | null = null;
+
+  /** 多页：页列表 + 当前活动页下标（对齐 draw.io 一个文件多页） */
+  private pages: DiagramPage[] = [];
+  private activePage = 0;
+  /** 底部页面栏 */
+  private pageBar: PageBar | null = null;
+  /** 切页时要重装整个模型，期间屏蔽脏标记 / 自动保存 */
+  private suppressDirty = false;
+  /**
+   * 文件解析失败时置位：此时画布是空的，如果放任自动保存写盘
+   * 会把用户原本的文件内容覆盖掉。故只挡住自动保存，手动保存仍由用户决定。
+   */
+  private loadError = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: DrawioPlugin) {
     super(leaf);
@@ -126,10 +151,32 @@ export class DrawioView extends FileView {
     const canvasArea = mainArea.createDiv({ cls: "drawio-canvas-area" });
     this.graphContainer = canvasArea.createDiv({ cls: "drawio-graph-container" });
 
+    // 底部页面栏：宽度与画布区一致（右抵格式面板），与 draw.io 行为相同
+    this.buildPageBar(canvasArea);
+
     // 格式面板（默认折叠隐藏，选中图形时滑出）
     this.formatPanelEl = mainArea.createDiv({
       cls: "drawio-format-panel drawio-collapsed",
     });
+  }
+
+  /** 构建底部页面栏，并把页面操作回抛到视图自身 */
+  private buildPageBar(parent: HTMLElement): void {
+    this.pageBar = new PageBar(
+      {
+        getPages: () => this.pages.map((p) => ({ id: p.id, name: p.name })),
+        getActiveIndex: () => this.activePage,
+        selectPage: (index) => this.selectPage(index),
+        addPage: () => this.addPage(),
+        renamePage: (index, name) => this.renamePage(index, name),
+        insertPage: (index) => this.insertPage(index),
+        duplicatePage: (index) => this.duplicatePage(index),
+        deletePage: (index) => this.deletePage(index),
+        movePage: (from, to) => this.movePage(from, to),
+      },
+      parent
+    );
+    this.pageBar.render();
   }
 
   /**
@@ -1690,45 +1737,290 @@ export class DrawioView extends FileView {
     container.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
   }
 
+  // ============================================================ 多页（page bar）
+
+  /** 生成一个新页面 id（只需在文件内唯一，格式随意） */
+  private nextPageId(): string {
+    return (
+      "page-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7)
+    );
+  }
+
+  /** 未占用的默认页名：第1页 / 第2页 …… */
+  private defaultPageName(): string {
+    let n = 1;
+    const taken = new Set(this.pages.map((p) => p.name));
+    while (taken.has(t("page.defaultName", { n: String(n) }))) n++;
+    return t("page.defaultName", { n: String(n) });
+  }
+
+  /** 空白页的模型骨架（与 draw.io 新建页一致：root + 默认父节点） */
+  private emptyModelXml(): string {
+    return (
+      '<mxGraphModel dx="1422" dy="798" grid="1" gridSize="10" guides="1" ' +
+      'tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" ' +
+      'pageWidth="827" pageHeight="1169" math="0" shadow="0">' +
+      '<root><mxCell id="0" /><mxCell id="1" parent="0" /></root></mxGraphModel>'
+    );
+  }
+
+  /** 把当前画布内容序列化回 pages[activePage].xml */
+  private captureActivePage(): void {
+    if (!this.graph) return;
+    if (this.activePage < 0 || this.activePage >= this.pages.length) return;
+    try {
+      const MxUtils = mxUtils();
+      const MxCodec = mxCodec();
+      const encoder = new MxCodec();
+      const node = encoder.encode(this.graph.getModel());
+      this.pages[this.activePage].xml = MxUtils.getXml(node);
+    } catch (err) {
+      console.error("Error capturing page:", err);
+    }
+  }
+
+  /**
+   * 切页：清空模型 → 解码目标页 → 清空撤销栈。
+   * `model.clear()` 会重建只含 root 的干净模型，避免上一页残留的 cell id
+   * 与新页冲突；期间屏蔽脏标记，否则切页会被当成一次内容改动而触发写盘。
+   */
+  private loadPageIntoGraph(index: number): void {
+    if (!this.graph) return;
+    const MxUtils = mxUtils();
+    const MxCodec = mxCodec();
+    const page = this.pages[index];
+    const model = this.graph.getModel();
+
+    this.suppressDirty = true;
+    model.beginUpdate();
+    try {
+      model.clear();
+      const xml = (page && page.xml ? page.xml : "").trim();
+      if (xml) {
+        const doc = MxUtils.parseXml(xml);
+        const node = doc.getElementsByTagName("mxGraphModel")[0];
+        if (node) {
+          const codec = new MxCodec(doc);
+          codec.decode(node, model);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading page:", err);
+      new Notice(t("notice.loadFailed") + (err as Error).message);
+    } finally {
+      model.endUpdate();
+      this.suppressDirty = false;
+    }
+
+    // 撤销栈跨页会串味（页 A 的操作被撤销到页 B 上），每页各自独立
+    this.graph.clearSelection();
+    if (this.undoManager && typeof this.undoManager.clear === "function") {
+      this.undoManager.clear();
+    }
+    this.updateGridBackground();
+  }
+
+  /** 切换页面 */
+  private selectPage(index: number): void {
+    if (index < 0 || index >= this.pages.length) return;
+    if (index === this.activePage) return;
+    this.captureActivePage();
+    this.activePage = index;
+    this.loadPageIntoGraph(index);
+    this.pageBar?.render();
+  }
+
+  /** 末尾新建一页并激活 */
+  private addPage(): void {
+    this.captureActivePage();
+    this.pages.push({
+      id: this.nextPageId(),
+      name: this.defaultPageName(),
+      xml: this.emptyModelXml(),
+    });
+    this.activePage = this.pages.length - 1;
+    this.loadPageIntoGraph(this.activePage);
+    this.pageBar?.render();
+    this.markDirty();
+  }
+
+  /** 在 index 之后插入一页空白页并激活 */
+  private insertPage(index: number): void {
+    if (index < 0 || index >= this.pages.length) return;
+    this.captureActivePage();
+    this.pages.splice(index + 1, 0, {
+      id: this.nextPageId(),
+      name: this.defaultPageName(),
+      xml: this.emptyModelXml(),
+    });
+    this.activePage = index + 1;
+    this.loadPageIntoGraph(this.activePage);
+    this.pageBar?.render();
+    this.markDirty();
+  }
+
+  /** 复制一页并放在其后 */
+  private duplicatePage(index: number): void {
+    if (index < 0 || index >= this.pages.length) return;
+    if (index === this.activePage) this.captureActivePage();
+    const src = this.pages[index];
+    const copy: DiagramPage = {
+      id: this.nextPageId(),
+      name: `${src.name} ${t("page.copySuffix")}`,
+      xml: src.xml || this.emptyModelXml(),
+    };
+    this.pages.splice(index + 1, 0, copy);
+    this.activePage = index + 1;
+    this.loadPageIntoGraph(this.activePage);
+    this.pageBar?.render();
+    this.markDirty();
+  }
+
+  /** 删除一页（至少保留一页） */
+  private deletePage(index: number): void {
+    if (index < 0 || index >= this.pages.length) return;
+    if (this.pages.length <= 1) {
+      new Notice(t("notice.lastPageKept"));
+      return;
+    }
+    const removed = this.pages[index];
+    this.pages.splice(index, 1);
+    if (index < this.activePage) {
+      // 删的是前面的页，活动页只需前移一位，画布内容不变
+      this.activePage -= 1;
+    } else if (index === this.activePage) {
+      this.activePage = Math.min(index, this.pages.length - 1);
+      this.loadPageIntoGraph(this.activePage);
+    }
+    this.pageBar?.render();
+    this.markDirty();
+    new Notice(t("notice.pageDeleted", { name: removed.name }));
+  }
+
+  /** 重排页面顺序 */
+  private movePage(from: number, to: number): void {
+    if (from < 0 || from >= this.pages.length) return;
+    if (to < 0 || to >= this.pages.length) return;
+    if (from === to) return;
+    if (from === this.activePage) this.captureActivePage();
+    const [moved] = this.pages.splice(from, 1);
+    this.pages.splice(to, 0, moved);
+    if (this.activePage === from) this.activePage = to;
+    else if (from < this.activePage && to >= this.activePage) this.activePage -= 1;
+    else if (from > this.activePage && to <= this.activePage) this.activePage += 1;
+    this.pageBar?.render();
+    this.markDirty();
+  }
+
+  /** 重命名一页 */
+  private renamePage(index: number, name: string): void {
+    if (index < 0 || index >= this.pages.length) return;
+    const next = name.trim();
+    if (!next || next === this.pages[index].name) return;
+    this.pages[index].name = next;
+    this.pageBar?.render();
+    this.markDirty();
+  }
+
+  /**
+   * 从 `<diagram>` 节点提取出 `<mxGraphModel>` 的 XML 文本。
+   * 兼容三种写法：① 未压缩、mxGraphModel 作为子元素；
+   * ② 未压缩但被转义成了文本；③ draw.io 的压缩格式（base64 + raw deflate）。
+   */
+  private extractModelXml(diagramNode: Element, doc: Document): string {
+    const MxUtils = mxUtils();
+
+    const child = diagramNode.getElementsByTagName("mxGraphModel")[0];
+    if (child) return MxUtils.getXml(child);
+
+    const text = (diagramNode.textContent || "").trim();
+    if (text) {
+      if (text.includes("<")) {
+        try {
+          const inner = MxUtils.parseXml(text);
+          const node = inner.getElementsByTagName("mxGraphModel")[0];
+          if (node) return MxUtils.getXml(node);
+        } catch {
+          // 落到下面的兜底
+        }
+      } else {
+        try {
+          return this.decompressDrawio(text);
+        } catch {
+          // 落到下面的兜底
+        }
+      }
+    }
+
+    const fallback = doc.getElementsByTagName("mxGraphModel")[0];
+    return fallback ? MxUtils.getXml(fallback) : "";
+  }
+
   private async loadDiagram(file: TFile): Promise<void> {
     if (!this.graph) return;
 
     try {
       const content = await this.app.vault.read(file);
-      if (!content.trim()) return;
-
       const MxUtils = mxUtils();
-      const MxCodec = mxCodec();
-      const doc = MxUtils.parseXml(content);
 
-      let graphModelNode = null;
-      const diagramNode = doc.getElementsByTagName("diagram")[0];
+      const pages: DiagramPage[] = [];
 
-      if (diagramNode) {
-        const modelContent = (diagramNode.textContent || "").trim();
-        if (modelContent && !modelContent.includes("<")) {
-          // Compressed format — decode
-          try {
-            const decoded = this.decompressDrawio(modelContent);
-            const decodedDoc = MxUtils.parseXml(decoded);
-            graphModelNode = decodedDoc.getElementsByTagName("mxGraphModel")[0];
-          } catch {
-            graphModelNode = doc.getElementsByTagName("mxGraphModel")[0];
-          }
-        } else {
-          graphModelNode = doc.getElementsByTagName("mxGraphModel")[0];
+      if (content.trim()) {
+        const doc = MxUtils.parseXml(content);
+        const diagramNodes = doc.getElementsByTagName("diagram");
+
+        for (let i = 0; i < diagramNodes.length; i++) {
+          const node = diagramNodes[i];
+          pages.push({
+            id: node.getAttribute("id") || this.nextPageId(),
+            name: node.getAttribute("name") || t("page.defaultName", { n: String(i + 1) }),
+            xml: this.extractModelXml(node, doc),
+          });
         }
-      } else {
-        graphModelNode = doc.getElementsByTagName("mxGraphModel")[0];
+
+        // 没有 <diagram> 包裹、直接是裸 mxGraphModel 的老写法
+        if (pages.length === 0) {
+          const bare = doc.getElementsByTagName("mxGraphModel")[0];
+          if (bare) {
+            pages.push({
+              id: this.nextPageId(),
+              name: t("page.defaultName", { n: "1" }),
+              xml: MxUtils.getXml(bare),
+            });
+          }
+        }
       }
 
-      if (graphModelNode) {
-        const codec = new MxCodec(graphModelNode.ownerDocument);
-        codec.decode(graphModelNode, this.graph.getModel());
+      // 空文件 / 无法解析：给一个干净的「第1页」，不丢用户内容
+      if (pages.length === 0) {
+        pages.push({
+          id: this.nextPageId(),
+          name: t("page.defaultName", { n: "1" }),
+          xml: this.emptyModelXml(),
+        });
       }
+
+      this.pages = pages;
+      this.activePage = 0;
+      this.loadPageIntoGraph(0);
+      this.isDirty = false;
+      this.loadError = false;
+      this.pageBar?.render();
     } catch (err) {
       console.error("Error loading diagram:", err);
       new Notice(t("notice.loadFailed") + (err as Error).message);
+      // 解析失败也不让画布空着，但禁止自动保存覆盖原文件
+      this.loadError = true;
+      this.pages = [
+        {
+          id: this.nextPageId(),
+          name: t("page.defaultName", { n: "1" }),
+          xml: this.emptyModelXml(),
+        },
+      ];
+      this.activePage = 0;
+      this.loadPageIntoGraph(0);
+      this.pageBar?.render();
     }
   }
 
@@ -1757,10 +2049,15 @@ export class DrawioView extends FileView {
   }
 
   private markDirty(): void {
+    // 切页时重装模型不算内容改动
+    if (this.suppressDirty) return;
+
     this.isDirty = true;
 
     // 关掉自动保存时只标记脏数据，等用户点工具栏的保存按钮
     if (!this.plugin.settings.autoSave) return;
+    // 文件没解析成功：不许自动写盘，避免把原文件清空
+    if (this.loadError) return;
 
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
     this.saveTimeout = setTimeout(() => {
@@ -1774,6 +2071,10 @@ export class DrawioView extends FileView {
     if (ok) new Notice(t("notice.saved"));
   }
 
+  /**
+   * 写盘：把每一页序列化成 `<mxfile>` 下的一个 `<diagram>`（draw.io 原生多页格式）。
+   * 当前页从画布实时编码，其余页用内存里缓存的 xml，保证切页前的改动也一起落盘。
+   */
   private async saveDiagram(): Promise<boolean> {
     if (!this.graph || !this.file) return false;
 
@@ -1784,10 +2085,22 @@ export class DrawioView extends FileView {
       const encoder = new MxCodec();
       const node = encoder.encode(this.graph.getModel());
       const modelXml = MxUtils.getXml(node);
+      if (this.activePage >= 0 && this.activePage < this.pages.length) {
+        this.pages[this.activePage].xml = modelXml;
+      }
 
-      const name = this.escapeXmlAttr(this.file.basename);
-      const id = this.escapeXmlAttr(this.file.path);
-      const content = `<mxfile host="obsidian-drawio-editor" modified="${new Date().toISOString()}" version="${this.plugin.manifest.version}">\n  <diagram name="${name}" id="${id}">\n${modelXml}\n  </diagram>\n</mxfile>`;
+      const diagrams = this.pages.map((page, i) => {
+        const name = this.escapeXmlAttr(
+          page.name || t("page.defaultName", { n: String(i + 1) })
+        );
+        const id = this.escapeXmlAttr(page.id);
+        const xml = (page.xml || "").trim() || this.emptyModelXml();
+        return `  <diagram name="${name}" id="${id}">\n${xml}\n  </diagram>`;
+      });
+
+      const content =
+        `<mxfile host="obsidian-drawio-editor" modified="${new Date().toISOString()}" version="${this.plugin.manifest.version}">\n` +
+        `${diagrams.join("\n")}\n</mxfile>`;
 
       await this.app.vault.modify(this.file, content);
       this.isDirty = false;
@@ -1859,7 +2172,7 @@ export class DrawioView extends FileView {
 
   private cleanup(): void {
     // 自动保存关闭时不强行写盘，避免出现"没点保存却被改了文件"的意外
-    if (this.plugin.settings.autoSave && this.isDirty) {
+    if (this.plugin.settings.autoSave && this.isDirty && !this.loadError) {
       void this.saveDiagram();
     }
     if (this.saveTimeout) {
@@ -1872,6 +2185,10 @@ export class DrawioView extends FileView {
       this.ctxMenuEl.remove();
       this.ctxMenuEl = null;
     }
+    if (this.pageBar) {
+      this.pageBar.destroy();
+      this.pageBar = null;
+    }
     if (this.graph) {
       this.graph.destroy();
       this.graph = null;
@@ -1883,5 +2200,9 @@ export class DrawioView extends FileView {
     this.formatPanelEl = null;
     this.scratchSectionEl = null;
     this.scratchGridEl = null;
+    this.pages = [];
+    this.activePage = 0;
+    this.loadError = false;
+    this.suppressDirty = false;
   }
 }

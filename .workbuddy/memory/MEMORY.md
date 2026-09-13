@@ -28,9 +28,21 @@
 ## 工作习惯
 - 改完代码必须跑 tsc + 构建，并同步升三处版本号（manifest.json / package.json / versions.json）。
 
-## 视图 DOM 结构（v0.11.1 起）
-- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container`，右侧 `.drawio-format-panel`）。
+## 视图 DOM 结构（v0.12.0 起）
+- `buildUI()` 的层级：`containerEl.children[1]`（view content，类 `drawio-editor-container`，flex column）→ ① `.drawio-toolbar`（**横跨整宽、独占顶部一行**，v0.11.1 从画布区提上来的）② `.drawio-wrapper`（flex row，`flex:1 1 auto; min-height:0`）→ `.drawio-palette` + `.drawio-palette-resize` + `.drawio-main`（`.drawio-canvas-area` 内含 `.drawio-graph-container` + **`.drawio-pagebar`**，右侧 `.drawio-format-panel`）。
+- 页面栏放在 `.drawio-canvas-area` 内（不是 wrapper 下），所以其宽度天然等于画布区宽——左起形状面板右缘、右抵格式面板左缘，与 draw.io 一致。改成整宽的话要把它挪到 `.drawio-wrapper` 之后。
 - 改布局时注意：`.drawio-wrapper` 不能再写 `height:100%`，否则会顶出容器。
+
+## 多页 / 页面栏（v0.12.0）
+- 存储格式：一个 `.drawio` = 一个 `<mxfile>`，每页一个 `<diagram name="…" id="…">`，页内容是**未压缩**的 `<mxGraphModel>…</mxGraphModel>` 文本（draw.io 双端可读，无需 deflate 回写）。
+- 视图状态：`pages: {id,name,xml}[]` + `activePage`。非活动页的模型只以字符串形式躺在 `pages[i].xml` 里。
+- 切页三步：`captureActivePage()`（`encoder.encode(graph.getModel())` 存回当前页）→ `loadPageIntoGraph(i)` → `pageBar.render()`。
+- `loadPageIntoGraph` 必做：`model.clear()` 重建干净模型（否则上一页的 cell id 会残留、与新页冲突）→ `codec.decode(node, model)` → `graph.clearSelection()` → `undoManager.clear()`（撤销栈跨页会串味）。全程 `suppressDirty=true` 包住，否则切页会触发自动保存。
+- ⚠️ 关键 API：`mxGraphModel.prototype.clear = function(){ this.setRoot(this.createRoot()); }` —— 切页重置模型就用它。mxGraph 自带 `mxGraphModel` 专用 codec，其 `decodeRoot` 结尾会 `model.setRoot(rootCell)`，所以 decode 是替换 root 而不是往旧 root 上挂。
+- 解析三种写法（`extractModelXml`）：① mxGraphModel 是 `<diagram>` 的子元素（`getElementsByTagName` 直接找到，注意此时 `diagramNode.textContent` 是**空串**，不能只看 textContent）；② 未压缩但被转义成文本（textContent 含 `<`）；③ 压缩格式（textContent 不含 `<` → `decompressDrawio`）。
+- ⚠️ 排序坑：拖拽重排计算插入位时，因为候选矩形本就排除了被拖页签，`slot` 的坐标系已经等价于「splice 掉源元素后要插入的下标」，**不能再做 `if (slot > from) slot--` 补偿**（原型里有这个 bug，会让「拖到最右却没动」）。
+- 数据安全：`loadError` 标志。文件解析失败时给一个空白页但**禁止自动保存**（`markDirty` 提前 return、`cleanup` 加 `!loadError` 守卫），否则会把用户原文件覆盖成空 mxfile；手动保存不受限。
+- 删除页后的 activePage 修正：删前面的页只 `-1`（画布不重载）；删当前页 `min(index, len-1)` + 重载；删后面的页不动。
 
 ## 格式面板（FormatPanel）结构要点
 - v0.11.2 起**没有头部**：不再有 `.drawio-fmt-header`（「格式」标题 + 折叠/关闭图标按钮），`.drawio-fmt-tabs`（样式/文本/排列）就是面板第一行。i18n 的 `format.title/collapse/close` 已删除，别再加回来。
@@ -38,6 +50,7 @@
 - 底部按钮组 `.drawio-fmt-bottom` 只在「样式」Tab 显示（切 Tab 时 `display` 在 flex/none 间切换）。
 
 ## 近期变更
+- v0.12.0（底部页面栏 / 多页 sheet）：新增 `src/PageBar.ts`（页签渲染与切换、+ 新建、双击行内重命名、⋮ / 活动页签 ^ / 右键页签 / 右侧空白右键共用一个菜单，含重命名·插入·复制·左移·右移·删除，拖拽重排带蓝线指示，仅一页时删除置灰，横向滚动并自动滚到活动页）；`DrawioView` 改为「页列表 + 活动页」模型，存取 `mxfile` 下多个 `<diagram>`；新增 `loadError` 禁止解析失败时自动覆盖原文件。详见上文「多页 / 页面栏」。
 - v0.11.2（格式面板去掉头部）：「格式」标题与折叠/关闭两个图标按钮整行删除，Tab 行成为面板首行；同时清理 3 个 i18n key 与 3 条 CSS 规则。
 - v0.11.1（布局：工具栏提到顶部整宽）：工具栏从 `.drawio-canvas-area` 提到视图根容器下（横跨整宽、独占顶部一行），形状面板下移到工具栏之下——用户反馈「形状栏不要覆盖顶部菜单栏」；`.drawio-wrapper` 由 `height:100%` 改 `flex:1 1 auto; min-height:0`。
 - v0.11.0（右键上下文菜单 + 便签本 + 框选坐标修正）：画布图形/连线右键出 draw.io 风格自绘 DOM 菜单（挂 body，`position:fixed`，视口内钳制），12 项动作：删除/剪切/复制/创建副本/粘贴/锁定解锁/设为默认样式/移至最前|最后|上移|下移一层/编辑样式|数据|链接|连接点/添加到便签本；菜单项操作对象是 **当前选中集**（`getSelectionCells`），仅编辑类动作用右键命中的单个 cell。新增 `src/TextEditModal.ts`（可复用弹窗）与 `setupCanvasShortcuts`（Ctrl+C/X/V/D + Del/Backspace，`container.matches(":hover")` 守卫）。便签本存 `settings.scratchpad`，面板底部新增分组（仅非空时显示，`filterPalette` 跳过 `data-category-key="__scratch"`），每项悬停出「×」。**删除了原型里未实现的 Ctrl+E/Ctrl+M 快捷键文案**（Ctrl+E 会撞 Obsidian 编辑/阅读模式切换）。⚠️ 关键坑：`getCellAt` 要的是容器像素，见上文「mxGraph 坐标语义」。

@@ -197,6 +197,20 @@ const translations: Record<string, Record<string, string>> = {
     "ctx.modal.cancel": "Cancel",
     "notice.addedToScratchpad": "Added to scratchpad",
     "notice.scratchpadEmpty": "Scratchpad is empty",
+
+    // Page bar (bottom of the canvas, draw.io multi-page)
+    "page.new": "New page",
+    "page.menuTip": "Page options",
+    "page.rename": "Rename page",
+    "page.insert": "Insert page",
+    "page.duplicate": "Duplicate page",
+    "page.delete": "Delete page",
+    "page.moveLeft": "Move page left",
+    "page.moveRight": "Move page right",
+    "page.defaultName": "Page {{n}}",
+    "page.copySuffix": "copy",
+    "notice.pageDeleted": "Deleted page \"{{name}}\"",
+    "notice.lastPageKept": "A diagram needs at least one page",
   },
   "zh-cn": {
     "command.createDiagram": "新建图表",
@@ -392,6 +406,20 @@ const translations: Record<string, Record<string, string>> = {
     "ctx.modal.cancel": "取消",
     "notice.addedToScratchpad": "已添加到便签本",
     "notice.scratchpadEmpty": "便签本为空",
+
+    // 页面栏（画布底部，draw.io 多页）
+    "page.new": "新建页面",
+    "page.menuTip": "页面选项",
+    "page.rename": "重命名页面",
+    "page.insert": "插入页面",
+    "page.duplicate": "复制页面",
+    "page.delete": "删除页面",
+    "page.moveLeft": "左移一页",
+    "page.moveRight": "右移一页",
+    "page.defaultName": "第{{n}}页",
+    "page.copySuffix": "副本",
+    "notice.pageDeleted": "已删除页面「{{name}}」",
+    "notice.lastPageKept": "至少需要保留一个页面",
   },
 };
 

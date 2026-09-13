@@ -999,3 +999,194 @@ body.drawio-palette-resizing {
 .drawio-text-edit-apply:hover {
   background: #0f5fd6;
 }
+
+/* ============================================================
+   底部页面栏（对齐 draw.io 的 page bar）
+   位置：画布区最底部，左起形状面板右缘、右抵格式面板左缘
+   ============================================================ */
+
+.drawio-pagebar {
+  --drawio-pagebar-h: 34px;
+  height: var(--drawio-pagebar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  background: var(--background-secondary);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* 左侧 ⋮ 菜单按钮 */
+.drawio-pagebar-menu,
+.drawio-pagebar-add {
+  width: 30px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.drawio-pagebar-menu:hover,
+.drawio-pagebar-add:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 页签条（横向滚动，滚动条隐藏） */
+.drawio-pagebar-tabs {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.drawio-pagebar-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.drawio-pagebar-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 8px 0 12px;
+  max-width: 180px;
+  border: none;
+  border-right: 1px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.drawio-pagebar-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 活动页：底色与画布一致，看起来和画布连成一体 */
+.drawio-pagebar-tab.is-active {
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.drawio-pagebar-tab.is-dragging {
+  opacity: 0.65;
+  background: var(--background-primary);
+  border-radius: 5px;
+  z-index: 5;
+}
+
+.drawio-pagebar-tab-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 活动页上的 ^ 菜单按钮 */
+.drawio-pagebar-caret {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+
+.drawio-pagebar-caret:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 行内重命名输入框 */
+.drawio-pagebar-rename {
+  height: 20px;
+  padding: 0 4px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 3px;
+  outline: none;
+}
+
+/* 右侧空白：吃掉剩余宽度，右键可弹菜单 */
+.drawio-pagebar-blank {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 拖拽插入位置指示线 */
+.drawio-pagebar-drop {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--interactive-accent);
+  border-radius: 1px;
+  display: none;
+  pointer-events: none;
+}
+
+/* 页面菜单（挂 body，position: fixed） */
+.drawio-pagebar-menu-list {
+  position: fixed;
+  z-index: var(--layer-popover, 100);
+  min-width: 168px;
+  padding: 4px 0;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: var(--font-ui-small);
+}
+
+.drawio-pagebar-menu-item {
+  padding: 6px 16px;
+  color: var(--text-normal);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.drawio-pagebar-menu-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.drawio-pagebar-menu-item.is-disabled {
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.drawio-pagebar-menu-item.is-danger {
+  color: var(--text-error, #e24b4a);
+}
+
+.drawio-pagebar-menu-sep {
+  height: 1px;
+  margin: 4px 12px;
+  background: var(--background-modifier-border);
+}
