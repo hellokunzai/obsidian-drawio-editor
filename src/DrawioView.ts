@@ -314,6 +314,10 @@ export class DrawioView extends FileView {
     for (const category of categories) {
       const section = parent.createDiv({ cls: "drawio-palette-section" });
       section.dataset.categoryKey = category.key;
+      // 通用/杂项/高级默认折叠，便笺本默认展开（无论是否有收藏）
+      if (category.defaultCollapsed) {
+        section.addClass("drawio-palette-section-collapsed");
+      }
       const header = section.createEl("button", { cls: "drawio-palette-header", attr: { type: "button" } });
       header.createEl("span", {
         cls: "drawio-palette-arrow",
@@ -332,75 +336,55 @@ export class DrawioView extends FileView {
         }
       });
 
+      // 便签本分组的网格由用户收藏动态填充
+      if (category.key === "scratchpad") {
+        this.scratchSectionEl = section;
+        this.scratchGridEl = grid;
+        continue;
+      }
+
       for (const shape of category.shapes) {
-        const item = grid.createDiv({ cls: "drawio-palette-item" });
-        item.setAttribute("data-shape-id", shape.id);
-        item.setAttribute("title", getShapeLabel(shape));
-
-        // SVG icon via innerHTML
-        item.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`;
-
-        this.makeShapeDraggable(item, shape);
-
-        item.addEventListener("click", () => {
-          // 拖拽落点恰好在面板项上时会接着触发 click，吞掉一次避免误添加
-          if (this.suppressPaletteClick) {
-            this.suppressPaletteClick = false;
-            return;
-          }
-          this.addShapeAtCenter(shape);
-        });
+        this.appendPaletteItem(grid, shape);
       }
     }
 
-    // 便签本分组：从右键菜单「添加到便签本」收集的图形，可点击/拖拽回画布复用
-    this.buildScratchSection(parent);
-  }
-
-  /** 在形状面板底部构建「便签本」分组（仅在已有收藏时显示） */
-  private buildScratchSection(parent: HTMLElement): void {
-    const items = this.plugin.settings.scratchpad;
-    if (!items || items.length === 0) return;
-
-    const section = parent.createDiv({
-      cls: "drawio-palette-section drawio-palette-scratch",
-    });
-    section.dataset.categoryKey = "__scratch";
-    const header = section.createEl("button", {
-      cls: "drawio-palette-header",
-      attr: { type: "button" },
-    });
-    header.createEl("span", { cls: "drawio-palette-arrow", text: "▾" });
-    header.createEl("span", {
-      cls: "drawio-palette-title",
-      text: t("ctx.scratchpad"),
-    });
-    header.addEventListener("click", () => {
-      if (section.hasClass("drawio-palette-section-collapsed")) {
-        section.removeClass("drawio-palette-section-collapsed");
-      } else {
-        section.addClass("drawio-palette-section-collapsed");
-      }
-    });
-
-    const grid = section.createDiv({ cls: "drawio-palette-grid" });
-    this.scratchSectionEl = section;
-    this.scratchGridEl = grid;
+    // 用当前收藏填充便签本网格；空时隐藏分组
     this.fillScratchGrid();
   }
 
-  /** 把当前 settings.scratchpad 渲染进便签本网格（清空后重建） */
+  /** 把一个静态形状项追加到指定网格 */
+  private appendPaletteItem(grid: HTMLElement, shape: ShapeDef): void {
+    const item = grid.createDiv({ cls: "drawio-palette-item" });
+    item.setAttribute("data-shape-id", shape.id);
+    item.setAttribute("title", getShapeLabel(shape));
+
+    // SVG icon via innerHTML
+    item.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`;
+
+    this.makeShapeDraggable(item, shape);
+
+    item.addEventListener("click", () => {
+      // 拖拽落点恰好在面板项上时会接着触发 click，吞掉一次避免误添加
+      if (this.suppressPaletteClick) {
+        this.suppressPaletteClick = false;
+        return;
+      }
+      this.addShapeAtCenter(shape);
+    });
+  }
+
+  /** 把当前 settings.scratchpad 渲染进便签本网格（清空后重建）。分组始终可见。 */
   private fillScratchGrid(): void {
     const grid = this.scratchGridEl;
     if (!grid) return;
     grid.empty();
+    // 便签本分组始终显示（无论是否有收藏）；空时给出提示
+    this.scratchSectionEl?.classList.remove("drawio-hidden");
     const items = this.plugin.settings.scratchpad;
     if (!items || items.length === 0) {
-      // 清空后若已无收藏，隐藏整个分组
-      this.scratchSectionEl?.classList.add("drawio-hidden");
+      grid.createDiv({ cls: "drawio-palette-scratch-empty", text: t("notice.scratchpadEmpty") });
       return;
     }
-    this.scratchSectionEl?.classList.remove("drawio-hidden");
 
     items.forEach((def, idx) => {
       const shapeDef = this.scratchToShapeDef(def, idx);
@@ -450,10 +434,38 @@ export class DrawioView extends FileView {
   private rebuildScratchSection(): void {
     if (!this.scratchGridEl) {
       if (this.paletteEl && this.plugin.settings.scratchpad.length > 0) {
-        this.buildScratchSection(this.paletteEl);
+        this.ensureScratchSection(this.paletteEl);
       }
       return;
     }
+    this.fillScratchGrid();
+  }
+
+  /** 当 buildPalette 未生成便签本分组时（理论上已包含）兜底创建 */
+  private ensureScratchSection(parent: HTMLElement): void {
+    if (this.scratchSectionEl) return;
+
+    const section = parent.createDiv({
+      cls: "drawio-palette-section drawio-palette-scratch",
+    });
+    section.dataset.categoryKey = "scratchpad";
+    const header = section.createEl("button", {
+      cls: "drawio-palette-header",
+      attr: { type: "button" },
+    });
+    header.createEl("span", { cls: "drawio-palette-arrow", text: "▾" });
+    header.createEl("span", {
+      cls: "drawio-palette-title",
+      text: tOr("shapeCategory.scratchpad", "Scratchpad"),
+    });
+    header.addEventListener("click", () => {
+      const collapsed = section.hasClass("drawio-palette-section-collapsed");
+      section.toggleClass("drawio-palette-section-collapsed", !collapsed);
+    });
+
+    const grid = section.createDiv({ cls: "drawio-palette-grid" });
+    this.scratchSectionEl = section;
+    this.scratchGridEl = grid;
     this.fillScratchGrid();
   }
 
@@ -486,23 +498,42 @@ export class DrawioView extends FileView {
     sections.forEach((section) => {
       const key = section.dataset.categoryKey;
       const category = categories.find((c) => c.key === key);
-      // 便签本等非分类分组不受搜索过滤影响，直接跳过
       if (!category) return;
       let sectionHasMatch = false;
 
-      for (const item of Array.from(
-        section.querySelectorAll<HTMLElement>(".drawio-palette-item")
-      )) {
-        const shapeId = item.getAttribute("data-shape-id") ?? "";
-        const shape = category.shapes.find((s) => s.id === shapeId);
-        const hit =
-          q === "" ||
-          shapeId.toLowerCase().includes(q) ||
-          (shape !== undefined &&
-            (getShapeLabel(shape).toLowerCase().includes(q) ||
-              shape.name.toLowerCase().includes(q)));
-        item.toggleClass("drawio-hidden", !hit);
-        if (hit) sectionHasMatch = true;
+      if (key === "scratchpad") {
+        // 便签本内容是动态持久化的收藏，单独转换后匹配
+        for (const item of Array.from(
+          section.querySelectorAll<HTMLElement>(".drawio-palette-item")
+        )) {
+          const shapeId = item.getAttribute("data-shape-id") ?? "";
+          const idxMatch = shapeId.match(/^scratch(?:-edge)?-(\d+)$/);
+          const idx = idxMatch ? parseInt(idxMatch[1], 10) : -1;
+          const def = idx >= 0 ? this.plugin.settings.scratchpad[idx] : undefined;
+          const shapeDef = def ? this.scratchToShapeDef(def, idx) : undefined;
+          const hit =
+            q === "" ||
+            shapeId.toLowerCase().includes(q) ||
+            (shapeDef !== undefined &&
+              shapeDef.name.toLowerCase().includes(q));
+          item.toggleClass("drawio-hidden", !hit);
+          if (hit) sectionHasMatch = true;
+        }
+      } else {
+        for (const item of Array.from(
+          section.querySelectorAll<HTMLElement>(".drawio-palette-item")
+        )) {
+          const shapeId = item.getAttribute("data-shape-id") ?? "";
+          const shape = category.shapes.find((s) => s.id === shapeId);
+          const hit =
+            q === "" ||
+            shapeId.toLowerCase().includes(q) ||
+            (shape !== undefined &&
+              (getShapeLabel(shape).toLowerCase().includes(q) ||
+                shape.name.toLowerCase().includes(q)));
+          item.toggleClass("drawio-hidden", !hit);
+          if (hit) sectionHasMatch = true;
+        }
       }
 
       section.toggleClass("drawio-hidden", q !== "" && !sectionHasMatch);

@@ -1161,6 +1161,15 @@ body.drawio-palette-resizing {
   background: var(--background-modifier-border);
 }
 
+/* 便签本分组：空收藏时的提示文案 */
+.drawio-palette-scratch-empty {
+  grid-column: 1 / -1;
+  padding: 8px 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+}
+
 /* 便签本分组：每个收藏项右上角的移除按钮（悬停才显示） */
 .drawio-palette-scratch-item {
   position: relative;

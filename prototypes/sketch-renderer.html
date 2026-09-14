@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>草图渲染原型 · 手绘感形状</title>
+<style>
+  :root{
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --border: #d8dbe0;
+    --text: #2b2f36;
+    --text-dim: #6b7280;
+    --accent: #167dff;
+    --accent-soft: rgba(22,125,255,0.10);
+    --grid: #dfe3e8;
+    --grid-strong: #ccd2da;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:13px/1.5 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  header{
+    padding:14px 18px; border-bottom:1px solid var(--border); background:var(--panel);
+  }
+  header h1{margin:0 0 4px; font-size:15px; font-weight:600;}
+  header p{margin:0; color:var(--text-dim); font-size:12px;}
+
+  .layout{display:flex; align-items:stretch; min-height:calc(100vh - 62px);}
+  .stage{
+    flex:1; position:relative; overflow:hidden;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+      linear-gradient(var(--grid-strong) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-strong) 1px, transparent 1px);
+    background-size:10px 10px, 10px 10px, 50px 50px, 50px 50px;
+  }
+  svg{display:block; width:100%; height:100%;}
+
+  aside{
+    width:330px; flex:none; border-left:1px solid var(--border);
+    background:var(--panel); padding:14px 16px 40px; overflow:auto;
+  }
+  aside h2{
+    margin:0 0 10px; font-size:13px; font-weight:600;
+    padding-bottom:8px; border-bottom:1px solid var(--border);
+  }
+  .group{margin-bottom:16px;}
+  .group-title{
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-dim); margin-bottom:8px;
+  }
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .row label{display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none;}
+  .row select{flex:1;}
+  .row .val{
+    margin-left:auto; font-variant-numeric:tabular-nums;
+    color:var(--text-dim); font-size:12px; min-width:56px; text-align:right;
+  }
+  input[type=range]{width:150px;}
+  select{
+    font:inherit; padding:3px 6px; border:1px solid var(--border);
+    border-radius:4px; background:#fff; color:inherit;
+  }
+  .hint{color:var(--text-dim); font-size:11.5px; line-height:1.6; margin-top:6px;}
+  .swatches{display:flex; gap:6px; flex-wrap:wrap;}
+  .sw{
+    width:26px;height:26px;border-radius:4px;border:2px solid transparent;
+    cursor:pointer; box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);
+  }
+  .sw.on{border-color:var(--accent);}
+  .stage-tag{
+    position:absolute; left:12px; top:10px;
+    background:rgba(255,255,255,.86); border:1px solid var(--border);
+    border-radius:4px; padding:3px 8px; font-size:11.5px; color:var(--text-dim);
+    pointer-events:none;
+  }
+  .badge{
+    display:inline-block; background:var(--accent-soft); color:var(--accent);
+    border-radius:3px; padding:1px 5px; font-size:11px; margin-left:6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>草图渲染原型 <span class="badge">v0.16.5 候选</span></h1>
+  <p>拖动 / 缩放形状，勾选「草图」看手绘抖动效果；右侧参数可实时调整，确认后我按这组参数改插件。</p>
+</header>
+
+<div class="layout">
+  <div class="stage" id="stage">
+    <div class="stage-tag" id="tag"></div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <aside>
+    <h2>样式</h2>
+
+    <div class="group">
+      <div class="group-title">草图</div>
+      <div class="row">
+        <label><input type="checkbox" id="sketch" checked> 草图（手绘）</label>
+      </div>
+      <div class="hint">关闭后是完全平直的几何线条，用来对照。</div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">形状</div>
+      <div class="row">
+        <label style="flex:1">形状
+          <select id="shape">
+            <option value="rect">矩形</option>
+            <option value="ellipse">椭圆</option>
+            <option value="diamond">菱形</option>
+            <option value="roundrect">圆角矩形</option>
+            <option value="edge">连线（直线）</option>
+            <option value="edgeCurved">连线（曲线）</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="fill"> 填充</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="label" checked> 显示文字</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">抖动参数</div>
+
+      <div class="row">
+        <label style="width:88px">幅度</label>
+        <input type="range" id="amp" min="0" max="6" step="0.1" value="2.2">
+        <span class="val" id="ampV">2.2px</span>
+      </div>
+
+      <div class="row">
+        <label style="width:88px">弓形（鼓出）</label>
+        <input type="range" id="bow" min="0" max="1.6" step="0.05" value="0.7">
+        <span class="val" id="bowV">7%</span>
+      </div>
+
+      <div class="row">
+        <label style="width:88px">端部越界</label>
+        <input type="range" id="ovh" min="0" max="14" step="0.5" value="6">
+        <span class="val" id="ovhV">6px</span>
+      </div>
+
+      <div class="row">
+        <label style="width:88px">笔宽起伏</label>
+        <input type="range" id="wob" min="0" max="100" step="1" value="30">
+        <span class="val" id="wobV">30%</span>
+      </div>
+
+      <div class="row">
+        <label style="width:88px">手绘字体</label>
+        <input type="range" id="fontWob" min="0" max="100" step="1" value="0">
+        <span class="val" id="fontWV">0%</span>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button id="reroll" style="font:inherit;padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer">换一组种子</button>
+        <span class="val" id="seedV">seed 1</span>
+      </div>
+      <div class="hint">
+        「弓形」= 相对首尾连线的鼓出占比，参考图约 5–8%。<br>
+        「端部越界」= 四笔分开画、两端互相多伸出的量，参考图约 5–16px。
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">描边</div>
+      <div class="row">
+        <label style="width:88px">宽度</label>
+        <input type="range" id="sw" min="1" max="6" step="0.5" value="2">
+        <span class="val" id="swV">2px</span>
+      </div>
+      <div class="row">
+        <label style="width:88px">颜色</label>
+        <div class="swatches" id="colors"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">渲染器</div>
+      <div class="row">
+        <select id="renderer" style="width:100%">
+          <option value="A">A · 路径形变（拆边 + 弓形 + 抖动）</option>
+          <option value="B">B · 轮廓仿手绘（沿线重画 2 遍）</option>
+          <option value="C">C · 极简多边形化（每边 2 段折线）</option>
+        </select>
+      </div>
+      <div class="hint" id="rendererHint"></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var svg = document.getElementById("svg");
+  var stage = document.getElementById("stage");
+  var tag = document.getElementById("tag");
+  var NS = "http://www.w3.org/2000/svg";
+
+  // ---------------- 确定性随机 ----------------
+  function hashStr(s){
+    var h = 2166136261 >>> 0;
+    for (var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(seed){
+    var a = seed >>> 0;
+    return function(){
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var rnd = { next: Math.random };
+  function rng(salt){
+    return mulberry32(hashStr(G.seed + "|" + salt));
+  }
+  // 以 -1..1 的对称噪声取值
+  function noise(r){ return r() * 2 - 1; }
+  function fmt(v){ return String(Math.round(v * 100) / 100); }
+
+  // ---------------- 全局参数 ----------------
+  var G = {
+    seed: 1,
+    sketch: true,
+    shape: "rect",
+    fill: false,
+    label: true,
+    amp: 2.2,
+    bow: 0.7,
+    ovh: 6,
+    wob: 0.30,
+    fontWob: 0,
+    sw: 2,
+    color: "#1f2328",
+    renderer: "A"
+  };
+
+  var COLORS = ["#1f2328", "#5b6470", "#167dff", "#d9463f", "#2f8f5b"];
+
+  // ---------------- 舞台尺寸 ----------------
+  var vw = 0, vh = 0;
+  function measure(){
+    var r = stage.getBoundingClientRect();
+    vw = Math.max(200, r.width); vh = Math.max(200, r.height);
+    svg.setAttribute("viewBox", "0 0 " + vw + " " + vh);
+  }
+
+  // ---------------- 形状定义 ----------------
+  // 图形以中心点 + 宽高定位（scale 会随舞台缩放）
+  var SHAPES = {
+    rect:      { kind:"shape", w:220, h:120, sides: 4 },
+    roundrect: { kind:"shape", w:220, h:120, sides: 4, round: 18 },
+    ellipse:   { kind:"shape", w:220, h:130, sides: 24, curved: true },
+    diamond:   { kind:"shape", w:200, h:140, sides: 4 },
+    edge:      { kind:"edge",  len: 240, straight: true },
+    edgeCurved:{ kind:"edge",  len: 240, straight: false }
+  };
+
+  // 当前图形状态（可拖拽）
+  var node = { cx: 0, cy: 0, scale: 1, dragging: false, dx: 0, dy: 0 };
+
+  // ---------------- 几何工具 ----------------
+  function rectPts(cx, cy, w, h){
+    var hw = w/2, hh = h/2;
+    // 顺序：左上 → 右上 → 右下 → 左下
+    return [[cx-hw,cy-hh],[cx+hw,cy-hh],[cx+hw,cy+hh],[cx-hw,cy+hh]];
+  }
+  function ellipsePts(cx, cy, w, h, n){
+    var pts = [];
+    for (var i=0;i<n;i++){
+      var a = (i/n) * Math.PI * 2 - Math.PI/2;
+      pts.push([cx + Math.cos(a)*w/2, cy + Math.sin(a)*h/2]);
+    }
+    return pts;
+  }
+  function diamondPts(cx, cy, w, h){
+    return [[cx, cy-h/2],[cx+w/2, cy],[cx, cy+h/2],[cx-w/2, cy]];
+  }
+
+  /**
+   * 把一条直线段改成手绘的一笔：
+   *  1) 沿法线方向加「弓形」—— 用平滑的正弦拱，顶点在中点
+   *  2) 叠加高频小噪声 —— 笔的抖动
+   *  3) 两端按 ovh 沿轴向外伸出
+   *  4) 采样成折线（或二次贝塞尔），控制点数量决定"笔触感"
+   */
+  function handStroke(p0, p1, k, opt){
+    opt = opt || {};
+    var samples = opt.samples || (opt.curved ? 14 : 9);
+    var dx = p1[0]-p0[0], dy = p1[1]-p0[1];
+    var len = Math.hypot(dx, dy) || 1;
+    var ux = dx/len, uy = dy/len;
+    // 法线
+    var nx = -uy, ny = ux;
+
+    // 端部越界（每端独立，符号随机 -> 有时长有时短）
+    var rA = rng(k + "|ovhA"), rB = rng(k + "|ovhB");
+    var oA = (rA() < 0.5 ? -1 : 1) * G.ovh * (0.4 + rA() * 0.6);
+    var oB = (rB() < 0.5 ? -1 : 1) * G.ovh * (0.4 + rB() * 0.6);
+
+    var ax = p0[0] - ux * oA, ay = p0[1] - uy * oA;
+    var bx = p1[0] + ux * oB, by = p1[1] + uy * oB;
+
+    // 整体弓形幅度（相对长度）+ 方向随机
+    var rBw = rng(k + "|bow");
+    var bowAmp = G.bow * len * (0.6 + rBw() * 0.7) * (rBw() < 0.5 ? -1 : 1) * 0.5;
+
+    var noisy = rng(k + "|jit");
+    var pts = [];
+    for (var i=0;i<=samples;i++){
+      var t = i/samples;
+      // 弓形：sin(pi*t) 在中点最大
+      var bow = Math.sin(Math.PI * t) * bowAmp;
+      // 端部收一点，避免越界段也鼓
+      var jm = G.amp * (i===0 || i===samples ? 0.35 : 1);
+      var j = noise(noisy) * jm;
+      var x = ax + (bx-ax)*t + nx*(bow + j);
+      var y = ay + (by-ay)*t + ny*(bow + j);
+      pts.push([x, y]);
+    }
+    return pts;
+  }
+
+  /** 点序列 → 平滑路径（Catmull-Rom → 三次贝塞尔） */
+  function smoothPath(pts, close){
+    if (pts.length < 2) return "";
+    var d = "M " + fmt(pts[0][0]) + " " + fmt(pts[0][1]);
+    for (var i=0;i<pts.length-1;i++){
+      var p0 = pts[i-1] || pts[i];
+      var p1 = pts[i];
+      var p2 = pts[i+1];
+      var p3 = pts[i+2] || p2;
+      var c1x = p1[0] + (p2[0]-p0[0])/6, c1y = p1[1] + (p2[1]-p0[1])/6;
+      var c2x = p2[0] - (p3[0]-p1[0])/6, c2y = p2[1] - (p3[1]-p1[1])/6;
+      d += " C " + fmt(c1x) + " " + fmt(c1y) + " " + fmt(c2x) + " " + fmt(c2y) + " " + fmt(p2[0]) + " " + fmt(p2[1]);
+    }
+    if (close) d += " Z";
+    return d;
+  }
+  function polyPath(pts, close){
+    var d = "M " + fmt(pts[0][0]) + " " + fmt(pts[0][1]);
+    for (var i=1;i<pts.length;i++) d += " L " + fmt(pts[i][0]) + " " + fmt(pts[i][1]);
+    if (close) d += " Z";
+    return d;
+  }
+
+  // ---------------- 三种渲染器 ----------------
+
+  /** A：逐边拆开，每边单独一笔（最接近参考图「四笔分开画」的感觉） */
+  function renderA(corners, closed){
+    var parts = [];
+    var n = corners.length;
+    var last = closed ? n : n - 1;
+    for (var i=0;i<last;i++){
+      var a = corners[i], b = corners[(i+1)%n];
+      parts.push(handStroke(a, b, "e"+i, { samples: 9 }));
+    }
+    return parts;
+  }
+
+  /** B：沿线重画两遍，第二遍偏移稍大 —— 模拟「笔尖描了两下」 */
+  function renderB(corners, closed){
+    var parts = renderA(corners, closed);
+    var n = corners.length;
+    var last = closed ? n : n - 1;
+    for (var i=0;i<last;i++){
+      var a = corners[i], b = corners[(i+1)%n];
+      parts.push(handStroke(a, b, "e"+i+"b", { samples: 7 }));
+    }
+    return parts;
+  }
+
+  /** C：每条边只留 2 段折线 + 中点偏移 —— 最「几何化」的手绘 */
+  function renderC(corners, closed){
+    var parts = [];
+    var n = corners.length;
+    var last = closed ? n : n - 1;
+    for (var i=0;i<last;i++){
+      var a = corners[i], b = corners[(i+1)%n];
+      var dx = b[0]-a[0], dy = b[1]-a[1];
+      var len = Math.hypot(dx,dy) || 1;
+      var nx = -dy/len, ny = dx/len;
+      var r = rng("c"+i);
+      var off = noise(r) * G.amp * 1.6 + Math.sin(Math.PI*0.5)*G.bow*len*noise(r);
+      var mx = (a[0]+b[0])/2 + nx*off*0.7;
+      var my = (a[1]+b[1])/2 + ny*off*0.7;
+      var r2 = rng("c"+i+"e");
+      var ex = (b[0]-a[0]) * (G.ovh/len) * (r2()<0.5?-1:1) * 0.8;
+      var ey = (b[1]-a[1]) * (G.ovh/len) * (r2()<0.5?-1:1) * 0.8;
+      parts.push([[a[0]-ex*0.5, a[1]-ey*0.5],[mx,my],[b[0]+ex*0.5, b[1]+ey*0.5]]);
+    }
+    return parts;
+  }
+
+  // ---------------- 渲染 ----------------
+  var mouse = { x: 0, y: 0 };
+
+  function draw(){
+    measure();
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var def = SHAPES[G.shape];
+    var w = def.w * node.scale, h = def.h * node.scale;
+    var cx = node.cx, cy = node.cy;
+
+    // 处于拖动中时用鼠标位置
+    if (node.dragging){ cx = mouse.x + node.dx; cy = mouse.y + node.dy; }
+
+    var corners, closed = true;
+    if (G.shape === "ellipse") corners = ellipsePts(cx, cy, w, h, def.sides);
+    else if (G.shape === "diamond") corners = diamondPts(cx, cy, w, h);
+    else corners = rectPts(cx, cy, w, h);
+
+    var parts;
+    if (!G.sketch){
+      // 关闭草图：完全平直
+      parts = [];
+      if (G.shape === "ellipse"){
+        parts.push(ellipsePts(cx, cy, w, h, 64).map(function(p){return p;}));
+      } else {
+        var n = corners.length;
+        for (var i=0;i<n;i++) parts.push([corners[i], corners[(i+1)%n]]);
+      }
+    } else if (def.kind === "edge"){
+      var p0 = [cx - w/2, cy], p1 = [cx + w/2, cy];
+      if (G.shape === "edge") parts = [handStroke(p0, p1, "line", { samples: 12 })];
+      else parts = [smoothPoints(handStroke(p0, p1, "line2", { samples: 16, curved: true }))];
+      closed = false;
+    } else if (G.renderer === "A") parts = renderA(corners, true);
+    else if (G.renderer === "B") parts = renderB(corners, true);
+    else parts = renderC(corners, true);
+
+    // 分组：填充 / 描边 / 文字
+    var gFill = document.createElementNS(NS, "g");
+    var gStroke = document.createElementNS(NS, "g");
+    svg.appendChild(gFill); svg.appendChild(gStroke);
+
+    if (G.fill && closed && def.kind === "shape"){
+      var outline = [];
+      if (G.shape === "ellipse") outline = ellipsePts(cx, cy, w, h, 40);
+      else outline = corners;
+      var fp = document.createElementNS(NS, "path");
+      fp.setAttribute("d", smoothPath(outline, true));
+      fp.setAttribute("fill", hexA(G.color, 0.10));
+      fp.setAttribute("stroke", "none");
+      gFill.appendChild(fp);
+    }
+
+    var rw = rng("wob");
+    parts.forEach(function(pts, idx){
+      var p = document.createElementNS(NS, "path");
+      var isCurve = G.shape === "ellipse" || def.kind === "edge";
+      p.setAttribute("d", (isCurve || def.round) ? smoothPath(pts, false) : polyPath(pts, false));
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", G.color);
+      p.setAttribute("stroke-linecap", "round");
+      p.setAttribute("stroke-linejoin", "round");
+      var variation = 1 + noise(rw) * G.wob;
+      p.setAttribute("stroke-width", fmt(G.sw * Math.max(0.5, variation)));
+      p.setAttribute("opacity", G.renderer === "B" && idx >= parts.length/2 ? "0.75" : "1");
+      gStroke.appendChild(p);
+    });
+
+    // 文字
+    if (G.label){
+      var t = document.createElementNS(NS, "text");
+      t.setAttribute("x", fmt(cx)); t.setAttribute("y", fmt(cy + 4));
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("font-size", fmt(14 * Math.min(1.6, Math.max(0.8, node.scale))));
+      t.setAttribute("font-family", '-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif');
+      t.setAttribute("fill", G.color);
+      if (G.fontWob > 0){
+        var rr = rng("fx");
+        var ang = noise(rr) * G.fontWob * 3;
+        t.setAttribute("transform", "rotate(" + fmt(ang) + " " + fmt(cx) + " " + fmt(cy) + ")");
+        t.setAttribute("letter-spacing", fmt(noise(rr) * G.fontWob * 1.5));
+      }
+      t.textContent = G.shape === "ellipse" ? "椭圆" : G.shape === "diamond" ? "菱形" : G.shape.indexOf("edge") === 0 ? "连线标签" : "矩形";
+      svg.appendChild(t);
+    }
+
+    // 命中区（透明，便于拖拽）
+    if (def.kind === "shape"){
+      var hit = document.createElementNS(NS, "path");
+      if (G.shape === "ellipse") hit.setAttribute("d", smoothPath(ellipsePts(cx,cy,w,h,40), true));
+      else hit.setAttribute("d", polyPath(corners, true));
+      hit.setAttribute("fill", "rgba(0,0,0,0)");
+      hit.setAttribute("stroke", "none");
+      hit.style.cursor = "move";
+      hit.addEventListener("mousedown", function(e){
+        node.dragging = true;
+        var r = svg.getBoundingClientRect();
+        mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+        node.dx = cx - mouse.x; node.dy = cy - mouse.y;
+        e.preventDefault();
+      });
+      svg.appendChild(hit);
+    }
+
+    tag.textContent = (G.sketch ? "草图 ON" : "草图 OFF") +
+      " · 渲染器 " + (def.kind === "edge" ? "—" : G.sketch ? G.renderer : "平直") +
+      " · 幅度 " + G.amp + "px · 弓形 " + Math.round(G.bow*100) + "% · 越界 " + G.ovh + "px";
+  }
+
+  function smoothPoints(pts){ return pts; }
+
+  function hexA(hex, a){
+    var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+
+  // ---------------- 交互绑定 ----------------
+  function bind(id, fn, evt){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener(evt || "input", fn);
+    return el;
+  }
+
+  bind("sketch", function(e){ G.sketch = e.target.checked; draw(); }, "change");
+  bind("fill", function(e){ G.fill = e.target.checked; draw(); }, "change");
+  bind("label", function(e){ G.label = e.target.checked; draw(); }, "change");
+  bind("shape", function(e){ G.shape = e.target.value; draw(); }, "change");
+  bind("renderer", function(e){ G.renderer = e.target.value; updateHint(); draw(); }, "change");
+
+  bind("amp", function(e){
+    G.amp = parseFloat(e.target.value);
+    document.getElementById("ampV").textContent = G.amp.toFixed(1) + "px";
+    draw();
+  });
+  bind("bow", function(e){
+    G.bow = parseFloat(e.target.value);
+    document.getElementById("bowV").textContent = Math.round(G.bow*100) + "%";
+    draw();
+  });
+  bind("ovh", function(e){
+    G.ovh = parseFloat(e.target.value);
+    document.getElementById("ovhV").textContent = G.ovh + "px";
+    draw();
+  });
+  bind("wob", function(e){
+    G.wob = parseFloat(e.target.value)/100;
+    document.getElementById("wobV").textContent = e.target.value + "%";
+    draw();
+  });
+  bind("fontWob", function(e){
+    G.fontWob = parseFloat(e.target.value)/100;
+    document.getElementById("fontWV").textContent = e.target.value + "%";
+    draw();
+  });
+  bind("sw", function(e){
+    G.sw = parseFloat(e.target.value);
+    document.getElementById("swV").textContent = G.sw + "px";
+    draw();
+  });
+  bind("reroll", function(){
+    G.seed = G.seed + 1;
+    document.getElementById("seedV").textContent = "seed " + G.seed;
+    draw();
+  }, "click");
+
+  var colorBox = document.getElementById("colors");
+  COLORS.forEach(function(c, i){
+    var b = document.createElement("div");
+    b.className = "sw" + (c === G.color ? " on" : "");
+    b.style.background = c;
+    b.addEventListener("click", function(){
+      G.color = c;
+      Array.prototype.forEach.call(colorBox.children, function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      draw();
+    });
+    colorBox.appendChild(b);
+  });
+
+  var HINTS = {
+    A: "逐边拆开成独立一笔，最贴近参考图那种「四条边分开画、端部互相越界」的手感。",
+    B: "每条边画两遍，第二遍偏移更大、透明度更低，像笔尖描了两下。",
+    C: "每条边只留 2 段折线 + 中点偏移，最克制，缩放时也更不容易糊。"
+  };
+  function updateHint(){ document.getElementById("rendererHint").textContent = HINTS[G.renderer] || ""; }
+
+  // 舞台拖拽 / 缩放
+  window.addEventListener("mousemove", function(e){
+    var r = svg.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    if (node.dragging) draw();
+  });
+  window.addEventListener("mouseup", function(){
+    if (node.dragging){
+      node.dragging = false;
+      node.cx = mouse.x + node.dx; node.cy = mouse.y + node.dy;
+      draw();
+    }
+  });
+  stage.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var step = e.deltaY < 0 ? 1.06 : 1/1.06;
+    node.scale = Math.min(2.4, Math.max(0.4, node.scale * step));
+    draw();
+  }, { passive: false });
+
+  // 初始化
+  function init(){
+    measure();
+    node.cx = vw/2; node.cy = vh/2; node.scale = 1;
+    updateHint();
+    draw();
+  }
+  window.addEventListener("resize", draw);
+  init();
+})();
+</script>
+</body>
+</html>

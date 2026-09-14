@@ -328,21 +328,44 @@ export interface ShapeCategory {
   /** English fallback title, used when no translation is registered. */
   title: string;
   shapes: ShapeDef[];
+  /** 页面初次打开时是否默认折叠（便笺本应为 false / 不设置，其余分组默认折叠）。 */
+  defaultCollapsed?: boolean;
 }
 
 /**
  * Get all shape categories for the palette.
  * Titles are i18n keys — resolve them with `t(`shapeCategory.${key}`)`.
+ *
+ * Grouping mirrors the standard draw.io sidebar:
+ *   Scratchpad, General, Misc, Advanced.
  */
 export function getAllShapeCategories(): ShapeCategory[] {
   return [
-    { key: "basic", title: "Basic Shapes", shapes: BASIC_SHAPES },
-    { key: "edges", title: "Edges", shapes: EDGE_SHAPES },
-    { key: "containers", title: "Containers", shapes: CONTAINER_SHAPES },
-    { key: "flowchart", title: "Flowchart", shapes: STENCIL_SHAPES.filter(s => ["document", "data", "manual_input", "preparation", "display", "card", "callout"].includes(s.id)) },
-    { key: "uml", title: "UML", shapes: STENCIL_SHAPES.filter(s => ["umlClass", "umlActor", "umlUseCase", "umlPackage", "umlNote"].includes(s.id)) },
-    { key: "network", title: "Network", shapes: STENCIL_SHAPES.filter(s => ["server", "cloud", "database", "firewall", "router", "user"].includes(s.id)) },
-    { key: "icons", title: "Icons", shapes: STENCIL_SHAPES.filter(s => ["gear", "envelope", "folder", "star", "clock", "lock", "speechBubble", "flag", "heart"].includes(s.id)) },
+    { key: "scratchpad", title: "Scratchpad", shapes: [] },
+    {
+      key: "general",
+      title: "General",
+      defaultCollapsed: true,
+      shapes: [...BASIC_SHAPES, ...EDGE_SHAPES, ...CONTAINER_SHAPES],
+    },
+    {
+      key: "misc",
+      title: "Misc",
+      defaultCollapsed: true,
+      shapes: STENCIL_SHAPES.filter((s) =>
+        ["server", "cloud", "database", "firewall", "router", "user",
+         "gear", "envelope", "folder", "star", "clock", "lock", "speechBubble", "flag", "heart"].includes(s.id)
+      ),
+    },
+    {
+      key: "advanced",
+      title: "Advanced",
+      defaultCollapsed: true,
+      shapes: STENCIL_SHAPES.filter((s) =>
+        ["document", "data", "manual_input", "preparation", "display", "card", "callout",
+         "umlClass", "umlActor", "umlUseCase", "umlPackage", "umlNote"].includes(s.id)
+      ),
+    },
   ];
 }
 

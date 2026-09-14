@@ -96,13 +96,10 @@ const translations: Record<string, Record<string, string>> = {
     "palette.noResults": "No matching shapes",
 
     // Shape palette — categories
-    "shapeCategory.basic": "Basic Shapes",
-    "shapeCategory.edges": "Edges",
-    "shapeCategory.containers": "Containers",
-    "shapeCategory.flowchart": "Flowchart",
-    "shapeCategory.uml": "UML",
-    "shapeCategory.network": "Network",
-    "shapeCategory.icons": "Icons",
+    "shapeCategory.scratchpad": "Scratchpad",
+    "shapeCategory.general": "General",
+    "shapeCategory.misc": "Misc",
+    "shapeCategory.advanced": "Advanced",
 
     // Shape palette — items
     "shape.rect": "Rectangle",
@@ -394,13 +391,10 @@ const translations: Record<string, Record<string, string>> = {
     "palette.noResults": "没有匹配的形状",
 
     // 形状面板 — 分组
-    "shapeCategory.basic": "基础形状",
-    "shapeCategory.edges": "连线",
-    "shapeCategory.containers": "容器",
-    "shapeCategory.flowchart": "流程图",
-    "shapeCategory.uml": "UML",
-    "shapeCategory.network": "网络",
-    "shapeCategory.icons": "图标",
+    "shapeCategory.scratchpad": "便笺本",
+    "shapeCategory.general": "通用",
+    "shapeCategory.misc": "杂项",
+    "shapeCategory.advanced": "高级",
 
     // 形状面板 — 形状
     "shape.rect": "矩形",

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>草图歪斜效果预览 — drawio-editor</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f7f8fa; --border:#e3e6ea; --text:#1f2328;
+    --text-dim:#6b7280; --accent:#167dff; --accent-soft:rgba(22,125,255,.12);
+    --canvas:#fbfbfc; --grid:#eef0f3;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  header{
+    padding:18px 24px 14px; border-bottom:1px solid var(--border);
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  header h1{margin:0; font-size:16px; font-weight:600}
+  header .sub{color:var(--text-dim); font-size:12.5px}
+  .wrap{display:flex; gap:0; height:calc(100vh - 59px)}
+  .stage{
+    flex:1; position:relative; background:var(--canvas); overflow:hidden;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),
+                     linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:20px 20px;
+  }
+  .stage svg{position:absolute; inset:0; width:100%; height:100%; cursor:grab}
+  .stage svg:active{cursor:grabbing}
+  aside{
+    width:272px; flex:none; border-left:1px solid var(--border);
+    background:var(--panel); overflow-y:auto; padding:16px;
+  }
+  aside h2{
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--text-dim); margin:18px 0 8px; font-weight:600;
+  }
+  aside h2:first-child{margin-top:0}
+  label.row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin:9px 0; font-size:13px;
+  }
+  label.row input[type=range]{flex:1; min-width:0; accent-color:var(--accent)}
+  label.row .val{
+    min-width:46px; text-align:right; font-variant-numeric:tabular-nums;
+    color:var(--text-dim); font-size:12px;
+  }
+  label.chk{display:flex; align-items:center; gap:8px; margin:10px 0; cursor:pointer; user-select:none}
+  label.chk input{accent-color:var(--accent); width:15px; height:15px; margin:0}
+  .swatches{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 2px}
+  .sw{
+    width:26px; height:26px; border-radius:6px; border:2px solid transparent;
+    cursor:pointer; transition:.12s;
+  }
+  .sw:hover{transform:scale(1.08)}
+  .sw.on{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft)}
+  button.act{
+    width:100%; padding:8px; margin-top:8px; border-radius:7px; cursor:pointer;
+    border:1px solid var(--border); background:#fff; color:var(--text);
+    font-size:13px; font-family:inherit; transition:.12s;
+  }
+  button.act:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+  .note{
+    margin-top:16px; padding:10px 12px; border-radius:8px; font-size:12px;
+    background:var(--accent-soft); color:#0b5dbf; line-height:1.65;
+  }
+  .legend{
+    position:absolute; left:14px; bottom:12px; font-size:11.5px;
+    color:var(--text-dim); background:rgba(255,255,255,.9);
+    padding:6px 10px; border-radius:7px; border:1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>草图歪斜效果预览</h1>
+  <span class="sub">与插件 <code>SketchRenderer.ts</code> 同一套算法 · 拖动图形 / 滚轮缩放</span>
+</header>
+<div class="wrap">
+  <div class="stage" id="stage">
+    <svg id="svg"></svg>
+    <div class="legend">实线 = 原始几何 &nbsp;·&nbsp; 彩色 = 草图变形后</div>
+  </div>
+  <aside>
+    <h2>显示</h2>
+    <label class="chk"><input type="checkbox" id="showGhost" checked> 显示原始轮廓对照</label>
+    <label class="chk"><input type="checkbox" id="showText" checked> 显示文字</label>
+
+    <h2>歪斜强度</h2>
+    <label class="row">剪切场 <input type="range" id="shear" min="0" max="5" step="0.1" value="1.6"><span class="val" id="shearV">1.6</span></label>
+    <label class="row">低频随机 <input type="range" id="lean" min="0" max="4" step="0.1" value="0.8"><span class="val" id="leanV">0.8</span></label>
+    <label class="row">高频手抖 <input type="range" id="jitter" min="0" max="3" step="0.1" value="0.7"><span class="val" id="jitterV">0.7</span></label>
+    <label class="row">剪切波长 <input type="range" id="wl" min="1" max="6" step="0.1" value="2"><span class="val" id="wlV">2.0</span></label>
+
+    <h2>图形</h2>
+    <div class="swatches" id="glyphs"></div>
+
+    <h2>配色</h2>
+    <div class="swatches" id="colors"></div>
+
+    <button class="act" id="reseed">换一组种子</button>
+    <button class="act" id="reset">恢复默认参数</button>
+
+    <div class="note">
+      当前参数下，150px 宽的矩形顶边倾角偏移约 <b>1.0°</b>、最大顶点位移约 <b>2.9px</b>；
+      小图形相对更明显、大图形相对更稳，与手绘一致。
+    </div>
+  </aside>
+</div>
+
+<script>
+// ============ 与 src/SketchRenderer.ts 完全一致的算法 ============
+function hashStr(s){
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function fmt(v){ return String(Math.round(v * 100) / 100); }
+function rnd(seed){ return mulberry32(seed)() * 2 - 1; }
+
+const P = { SHEAR_AMP:1.6, SHEAR_WAVELENGTH:2.0, SHEAR_Y_WAVELENGTH_RATIO:1.6, LEAN_AMP:0.8, JITTER_AMP:0.7 };
+
+function vertexDelta(saltBase, vi, part, edgeAnchor){
+  const shearSeed = hashStr(saltBase + "#S" + part);
+  const phase = ((shearSeed % 1000) / 1000) * Math.PI * 2;
+  const wave = ((vi / P.SHEAR_WAVELENGTH) * (part === 1 ? P.SHEAR_Y_WAVELENGTH_RATIO : 1) * Math.PI * 2);
+  const shear = Math.sin(phase + wave) * P.SHEAR_AMP;
+  const lean = edgeAnchor !== null ? rnd(hashStr(saltBase + "#L" + edgeAnchor + "_" + part)) * P.LEAN_AMP : 0;
+  const jitter = rnd(hashStr(saltBase + "#j" + vi + "_" + part)) * P.JITTER_AMP;
+  return shear + lean + jitter;
+}
+
+function sketchifyPathD(d, saltBase){
+  let lastCmd = "", argCount = 0, tokenIndex = 0, vi = 0, part = 0;
+  return d.replace(/[a-zA-Z]|-?\d*\.?\d+(?:[eE][-+]?\d+)?/g, (tok) => {
+    if (/[a-zA-Z]/.test(tok)){ lastCmd = tok.toUpperCase(); argCount = 0; return tok; }
+    if (lastCmd === "A"){
+      const g = argCount % 7;
+      if (g <= 4){ argCount++; return tok; }
+      const arcIdx = Math.floor(argCount / 7);
+      const delta = vertexDelta(saltBase, tokenIndex++, g === 5 ? 0 : 1, "arc" + arcIdx);
+      argCount++;
+      return fmt(parseFloat(tok) + delta);
+    }
+    const singleAxis = lastCmd === "H" || lastCmd === "V";
+    const group = singleAxis ? Math.floor(tokenIndex / 2) : Math.floor(vi / 2);
+    const delta = vertexDelta(saltBase, singleAxis ? tokenIndex : vi, part, "v" + group);
+    tokenIndex++;
+    if (singleAxis){ vi++; part = 0; }
+    else { part = part === 0 ? 1 : 0; if (part === 0) vi++; }
+    argCount++;
+    return fmt(parseFloat(tok) + delta);
+  });
+}
+
+function sketchifyPoints(pts, saltBase){
+  let tokenIndex = 0;
+  return pts.replace(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g, (tok) => {
+    const idx = tokenIndex++;
+    const vi = Math.floor(idx / 2), part = idx % 2;
+    return fmt(parseFloat(tok) + vertexDelta(saltBase, vi, part, String(vi)));
+  });
+}
+
+// ============ 图形定义 ============
+// 每个图形给出：path（矩形/圆用 path 表达）、文字、默认填充
+const GLYPHS = {
+  rect: { name:"矩形", d:"M -75 -37.5 L 75 -37.5 L 75 37.5 L -75 37.5 Z", w:150, h:75 },
+  square:{ name:"方块", d:"M -30 -30 L 30 -30 L 30 30 L -30 30 Z", w:60, h:60 },
+  round: { name:"圆角矩", d:"M -70 -30 Q -75 -30 -75 -25 L -75 25 Q -75 30 -70 30 L 70 30 Q 75 30 75 25 L 75 -25 Q 75 -30 70 -30 Z", w:150, h:60 },
+  ellipse:{ name:"椭圆", d:"M -75 0 A 75 37.5 0 0 1 75 0 A 75 37.5 0 0 1 -75 0 Z", w:150, h:75 },
+  circle:{ name:"圆形", d:"M -35 0 A 35 35 0 0 1 35 0 A 35 35 0 0 1 -35 0 Z", w:70, h:70 },
+  diamond:{ name:"菱形", d:"M 0 -40 L 80 0 L 0 40 L -80 0 Z", w:160, h:80 },
+  hex: { name:"六边形", d:"M -60 -35 L 60 -35 L 90 0 L 60 35 L -60 35 L -90 0 Z", w:180, h:70 },
+  cylinder:{ name:"圆柱", d:"M -60 -40 A 60 12 0 0 1 60 -40 L 60 40 A 60 12 0 0 1 -60 40 Z", w:120, h:80 },
+};
+
+const COLORS = ["#167dff","#e8590c","#2f9e44","#7048e8","#c2255c","#1f2328"];
+
+let state = {
+  glyph: "rect", color: "#167dff", seed: 0,
+  showGhost: true, showText: true,
+  pan: { x: 0, y: 0 }, zoom: 1,
+};
+
+const svg = document.getElementById("svg");
+const stage = document.getElementById("stage");
+
+function buildGlyphButtons(){
+  const box = document.getElementById("glyphs");
+  box.innerHTML = "";
+  for (const k of Object.keys(GLYPHS)){
+    const b = document.createElement("button");
+    b.className = "sw" + (k === state.glyph ? " on" : "");
+    b.title = GLYPHS[k].name;
+    b.style.background = "#fff";
+    b.style.display = "grid";
+    b.style.placeItems = "center";
+    b.style.padding = "3px";
+    b.innerHTML = `<svg width="20" height="20" viewBox="-90 -45 180 90" style="overflow:visible"><path d="${GLYPHS[k].d}" fill="none" stroke="currentColor" stroke-width="10" style="color:var(--text)"/></svg>`;
+    b.onclick = () => { state.glyph = k; buildGlyphButtons(); render(); };
+    box.appendChild(b);
+  }
+}
+function buildColorButtons(){
+  const box = document.getElementById("colors");
+  box.innerHTML = "";
+  for (const c of COLORS){
+    const b = document.createElement("div");
+    b.className = "sw" + (c === state.color ? " on" : "");
+    b.style.background = c;
+    b.onclick = () => { state.color = c; buildColorButtons(); render(); };
+    box.appendChild(b);
+  }
+}
+
+function render(){
+  const g = GLYPHS[state.glyph];
+  const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+  const salt = "preview|" + state.glyph + "|" + state.seed;
+  const dOut = sketchifyPathD(g.d, salt);
+
+  const transform =
+    `translate(${cx + state.pan.x} ${cy + state.pan.y}) scale(${state.zoom})`;
+
+  // 填充要跟着描边一起歪，否则填充块会从变形后的描边里探出来。
+  // 二者共用同一个变形后的 path，所以天然对齐。
+  let inner = "";
+  if (state.showGhost){
+    inner += `<path d="${g.d}" fill="none" stroke="#c9ced6" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+  }
+  inner += `<path d="${dOut}" fill="${state.color}22" stroke="${state.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+  if (state.showText){
+    inner += `<text x="0" y="5" text-anchor="middle" font-size="14" font-weight="600" fill="${state.color}" font-family="-apple-system,system-ui,sans-serif">${GLYPHS[state.glyph].name}</text>`;
+  }
+
+  svg.innerHTML = `<g transform="${transform}">${inner}</g>`;
+
+  // 实时指标
+  const numsOut = (dOut.match(/-?\d*\.?\d+/g) || []).map(Number);
+  const numsIn = (g.d.match(/-?\d*\.?\d+/g) || []).map(Number);
+  const vOut = [], vIn = [];
+  for (let i = 0; i + 1 < numsOut.length; i += 2) vOut.push([numsOut[i], numsOut[i+1]]);
+  for (let i = 0; i + 1 < numsIn.length; i += 2) vIn.push([numsIn[i], numsIn[i+1]]);
+  let maxDisp = 0;
+  for (let i = 0; i < Math.min(vOut.length, vIn.length); i++){
+    maxDisp = Math.max(maxDisp, Math.hypot(vOut[i][0]-vIn[i][0], vOut[i][1]-vIn[i][1]));
+  }
+  const note = document.querySelector(".note");
+  note.innerHTML =
+    `当前参数下最大顶点位移约 <b>${maxDisp.toFixed(2)}px</b>` +
+    `（剪切 ${P.SHEAR_AMP} + 低频 ${P.LEAN_AMP} + 手抖 ${P.JITTER_AMP}）。` +
+    `位移是固定像素值，所以小图形相对更明显、大图形相对更稳，与手绘一致。`;
+}
+
+// ============ 交互：拖动 / 缩放 ============
+let dragging = false, lastP = null;
+svg.addEventListener("mousedown", (e) => { dragging = true; lastP = { x:e.clientX, y:e.clientY }; });
+window.addEventListener("mousemove", (e) => {
+  if (!dragging || !lastP) return;
+  state.pan.x += e.clientX - lastP.x;
+  state.pan.y += e.clientY - lastP.y;
+  lastP = { x:e.clientX, y:e.clientY };
+  render();
+});
+window.addEventListener("mouseup", () => { dragging = false; lastP = null; });
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  state.zoom = Math.min(3, Math.max(0.4, state.zoom * (e.deltaY < 0 ? 1.08 : 0.926)));
+  render();
+}, { passive:false });
+
+// ============ 侧栏绑定 ============
+function bindRange(id, valId, key){
+  const el = document.getElementById(id), lab = document.getElementById(valId);
+  el.oninput = () => { P[key] = parseFloat(el.value); lab.textContent = parseFloat(el.value).toFixed(1); render(); };
+  lab.textContent = P[key].toFixed(1);
+}
+bindRange("shear","shearV","SHEAR_AMP");
+bindRange("lean","leanV","LEAN_AMP");
+bindRange("jitter","jitterV","JITTER_AMP");
+bindRange("wl","wlV","SHEAR_WAVELENGTH");
+
+document.getElementById("showGhost").onchange = (e) => { state.showGhost = e.target.checked; render(); };
+document.getElementById("showText").onchange = (e) => { state.showText = e.target.checked; render(); };
+document.getElementById("reseed").onclick = () => { state.seed++; render(); };
+document.getElementById("reset").onclick = () => {
+  P.SHEAR_AMP = 1.6; P.LEAN_AMP = 0.8; P.JITTER_AMP = 0.7; P.SHEAR_WAVELENGTH = 2.0;
+  ["shear","lean","jitter","wl"].forEach((id,i) => {
+    const keys = ["SHEAR_AMP","LEAN_AMP","JITTER_AMP","SHEAR_WAVELENGTH"];
+    document.getElementById(id).value = P[keys[i]];
+    document.getElementById(id === "wl" ? "wlV" : id + "V").textContent = P[keys[i]].toFixed(1);
+  });
+  render();
+};
+
+buildGlyphButtons();
+buildColorButtons();
+window.addEventListener("resize", render);
+render();
+</script>
+</body>
+</html>
