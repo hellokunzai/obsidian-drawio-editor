@@ -520,24 +520,39 @@ body.drawio-palette-resizing {
   flex-shrink: 0;
 }
 
-.drawio-fmt-tab {
+/* ⚠️ 面板里所有自绘 <button> 都必须带父级前缀提权到 (0,2,0)。
+   Obsidian app.css 有 `button:not(.clickable-icon) { color: var(--text-color);
+   background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`（特异性 0,1,1），
+   单类名（0,1,0）会被整条盖掉 —— 表现就是「未激活页签 / 文字按钮」变成主题灰底实心方块，
+   而且插件自己写的 border 仍会生效，于是多出一圈硬边框，比原生按钮难看一大截。 */
+.drawio-fmt-tabs .drawio-fmt-tab {
   flex: 1;
-  padding: 9px 0;
+  padding: 9px 4px;
   border: none;
+  border-radius: 0;
   background: transparent;
-  font-size: 13px;
+  box-shadow: none;
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  font-family: inherit;
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.2;
   color: var(--text-muted);
   cursor: pointer;
   position: relative;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-tab:hover {
+.drawio-fmt-tabs .drawio-fmt-tab:hover {
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.drawio-fmt-tab.active {
-  color: var(--text-accent, #167dff);
+/* 活动页签：保持透明底 + 强调色文字，hover 不回退成灰块（与 Obsidian 标签页一致） */
+.drawio-fmt-tabs .drawio-fmt-tab.active {
   background: transparent;
+  color: var(--text-accent, #167dff);
   font-weight: 500;
 }
 
@@ -821,32 +836,42 @@ body.drawio-palette-resizing {
   flex-wrap: wrap;
 }
 
-.drawio-fmt-tbtn {
+/* 文字格式按钮（B/I/U/S + 对齐）：改用 Obsidian 原生按钮皮 —— interactive-normal 底、无边框、无内描边 */
+.drawio-fmt-body .drawio-fmt-tbtn {
   min-width: 30px;
   height: 30px;
   padding: 0 8px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  border-radius: 5px;
+  border: none;
+  border-radius: var(--radius-s, 6px);
+  background: var(--interactive-normal);
+  box-shadow: none;
+  appearance: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.2;
   color: var(--text-normal);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-tbtn:hover {
-  background: var(--background-modifier-hover);
+.drawio-fmt-body .drawio-fmt-tbtn:hover {
+  background: var(--interactive-hover);
 }
 
-.drawio-fmt-tbtn.active {
+.drawio-fmt-body .drawio-fmt-tbtn:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.drawio-fmt-body .drawio-fmt-tbtn.active {
   background: rgba(22, 125, 255, 0.12);
-  border-color: rgba(22, 125, 255, 0.4);
   color: #167dff;
+  font-weight: 600;
 }
 
-.drawio-fmt-tbtn.icon {
+.drawio-fmt-body .drawio-fmt-tbtn.icon {
   padding: 0;
 }
 
@@ -858,23 +883,46 @@ body.drawio-palette-resizing {
   margin-bottom: 12px;
 }
 
-.drawio-fmt-arrange-btn {
+.drawio-fmt-body .drawio-fmt-arrange-btn {
   padding: 7px 0;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  border-radius: 5px;
-  font-size: 13px;
+  border: none;
+  border-radius: var(--radius-s, 6px);
+  background: var(--interactive-normal);
+  box-shadow: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.2;
   cursor: pointer;
   color: var(--text-normal);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-arrange-btn:hover {
-  background: var(--background-modifier-hover);
+.drawio-fmt-body .drawio-fmt-arrange-btn:hover {
+  background: var(--interactive-hover);
 }
 
-.drawio-fmt-arrange-btn:disabled {
+.drawio-fmt-body .drawio-fmt-arrange-btn:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.drawio-fmt-body .drawio-fmt-arrange-btn:disabled,
+.drawio-fmt-body .drawio-fmt-arrange-btn:disabled:hover {
+  background: var(--interactive-normal);
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* 键盘可达性：只给 focus-visible 加环，鼠标点击不出现（与 Obsidian 自身一致） */
+.drawio-fmt-tabs .drawio-fmt-tab:focus-visible,
+.drawio-fmt-body .drawio-fmt-btn:focus-visible,
+.drawio-fmt-body .drawio-fmt-tbtn:focus-visible,
+.drawio-fmt-body .drawio-fmt-arrange-btn:focus-visible,
+.drawio-fmt-body .drawio-fmt-pencil:focus-visible,
+.drawio-fmt-body .drawio-fmt-spin-btn:focus-visible,
+.drawio-fmt-bottom .drawio-fmt-bottom-btn:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus, #167dff);
+  outline-offset: -2px;
 }
 
 .drawio-fmt-block {
@@ -898,19 +946,35 @@ body.drawio-palette-resizing {
   flex-shrink: 0;
 }
 
-.drawio-fmt-bottom-btn {
+.drawio-fmt-bottom .drawio-fmt-bottom-btn {
   width: 100%;
   padding: 7px 0;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  border-radius: 5px;
-  font-size: 13px;
+  border: none;
+  border-radius: var(--radius-s, 6px);
+  background: var(--interactive-normal);
+  box-shadow: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.2;
   cursor: pointer;
   color: var(--text-normal);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-bottom-btn:hover {
-  background: var(--background-modifier-hover);
+.drawio-fmt-bottom .drawio-fmt-bottom-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.drawio-fmt-bottom .drawio-fmt-bottom-btn:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.drawio-fmt-bottom .drawio-fmt-bottom-btn:disabled,
+.drawio-fmt-bottom .drawio-fmt-bottom-btn:disabled:hover {
+  background: var(--interactive-normal);
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ============================================================
@@ -980,26 +1044,44 @@ body.drawio-palette-resizing {
   min-width: 0;
 }
 
-/* 通用小按钮（绘图面板用） */
-.drawio-fmt-btn {
-  padding: 6px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  background: var(--background-primary);
-  font-size: 13px;
+/* 通用小按钮（绘图 / 样式面板用）：改用 Obsidian 原生按钮皮 */
+.drawio-fmt-body .drawio-fmt-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-s, 6px);
+  background: var(--interactive-normal);
+  box-shadow: none;
+  appearance: none;
+  min-width: 0;
+  font-family: inherit;
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.2;
   color: var(--text-normal);
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-btn:hover {
-  background: var(--background-modifier-hover);
+.drawio-fmt-body .drawio-fmt-btn:hover {
+  background: var(--interactive-hover);
 }
 
-.drawio-fmt-btn.active {
+.drawio-fmt-body .drawio-fmt-btn:active {
+  background: var(--background-modifier-active-hover);
+}
+
+/* 开关型（圆角等）：软强调底色 + 强调色文字，沿用项目品牌色 #167dff */
+.drawio-fmt-body .drawio-fmt-btn.active {
   background: rgba(22, 125, 255, 0.12);
-  border-color: rgba(22, 125, 255, 0.45);
   color: #167dff;
+  font-weight: 500;
+}
+
+.drawio-fmt-body .drawio-fmt-btn:disabled,
+.drawio-fmt-body .drawio-fmt-btn:disabled:hover {
+  background: var(--interactive-normal);
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* 「?」帮助气泡 */
@@ -1068,29 +1150,44 @@ body.drawio-palette-resizing {
   cursor: pointer;
 }
 
-.drawio-fmt-pencil {
+/* 铅笔：纯图标按钮，走工具栏那套「默认透明、hover 才出底」的原生观感
+   （TS 侧同时挂了 Obsidian 自己的 clickable-icon，让默认按钮规则直接不匹配） */
+.drawio-fmt-body .drawio-fmt-pencil {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  background: var(--background-primary);
-  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  color: var(--icon-color, var(--text-muted));
+  opacity: var(--icon-opacity, 0.85);
   cursor: pointer;
   flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.drawio-fmt-pencil:hover {
+.drawio-fmt-body .drawio-fmt-pencil:hover {
   background: var(--background-modifier-hover);
-  color: var(--text-normal);
+  color: var(--icon-color-hover, var(--text-normal));
+  opacity: 1;
 }
 
-.drawio-fmt-pencil svg {
-  width: 13px;
-  height: 13px;
+.drawio-fmt-body .drawio-fmt-pencil:active {
+  background: var(--background-modifier-active-hover);
+}
+
+/* 图标尺寸写死在 CSS：避免主题的 .clickable-icon svg 规则改动图标大小 */
+.drawio-fmt-body .drawio-fmt-pencil svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
 }
 
 /* 数字框的上下步进（原生 spinner 已在下面隐藏，避免两组箭头打架） */
@@ -1101,26 +1198,33 @@ body.drawio-palette-resizing {
   border-left: 1px solid var(--background-modifier-border);
 }
 
-.drawio-fmt-spin-btn {
+/* 步进键嵌在自带边框的数字框里，所以它们自己保持透明，只做 hover 反馈 */
+.drawio-fmt-body .drawio-fmt-spin-btn {
   flex: 1;
   width: 18px;
   padding: 0;
   border: none;
-  background: var(--background-primary);
-  color: var(--text-muted);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  color: var(--icon-color, var(--text-muted));
   font-size: 7px;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-fmt-spin-btn:first-child {
+.drawio-fmt-body .drawio-fmt-spin-btn:first-child {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.drawio-fmt-spin-btn:hover {
+.drawio-fmt-body .drawio-fmt-spin-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }

@@ -174,11 +174,14 @@ export class DrawPanel {
     });
     const gridColorBox = h("div", "drawio-fmt-colorbox");
     gridColorBox.appendChild(this.gridColorSwatch);
+    // clickable-icon 是 Obsidian 自己的图标按钮类：挂上它，app.css 里
+    // 那条 `button:not(.clickable-icon)` 默认样式就不会命中，顺带拿到原生的图标色/ hover 观感
     const gridPencil = h(
       "button",
-      "drawio-fmt-pencil",
+      "clickable-icon drawio-fmt-pencil",
       undefined
     ) as HTMLButtonElement;
+    gridPencil.type = "button";
     gridPencil.title = t("diagram.gridColorTip");
     gridPencil.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>';

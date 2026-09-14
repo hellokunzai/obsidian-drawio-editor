@@ -1,6 +1,6 @@
 # 项目记忆
 
-> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.5。
+> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.7。
 > 跨会话成立的事实与踩坑结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
 
 ## 技术栈与工作流
@@ -27,9 +27,22 @@
   挂 body 且可拖动的浮动面板用**重复类名**（`.drawio-layers-btn.drawio-layers-btn`）；
   ② 给按钮挂 Obsidian 自己的 `clickable-icon` 类，让那条规则直接不匹配（顺带白拿 ribbon 的 `--icon-color` + `--icon-opacity` 观感）。
   `<div>` 造的「按钮」没有这个问题，只有真 `<button>` 会。
-- **这个坑永远是一片不是一个：改完必须跑全量扫描。** 点对点修已被证伪两次（先漏了工具栏 12 个，
-  后发现全仓还有 11 个类中招）。扫描法：正向扫源码 `createEl("button")` 收集类名 → 反向扫
-  `styles.css` 找 `^\.[A-Za-z0-9_-]+$` 形式的纯单类名规则 → 取交集必须为空。
+- **这个坑永远是一片不是一个：改完必须跑全量扫描。** 点对点修已被证伪三次（先漏工具栏 12 个，
+  再漏全仓 11 个类，又漏掉右侧面板整个 `drawio-fmt-*` 家族 7 个类）。
+  现成脚本（通用，项目根跑，退出码 0 = 通过）：
+  `node C:/Users/hellokunzai/.workbuddy/skills/obsidian-plugin-dev/scripts/scan-button-specificity.js`
+- **扫描必须覆盖项目里所有建按钮的写法，只扫 `createEl("button")` 必漏。** 本仓有两套：
+  Obsidian 封装 `createEl("button", {cls})`（DrawioView / PageBar / 各浮动面板）和
+  本地 helper `h("button", "cls", text)`（`DrawPanel.ts` / `FormatPanel.ts`，内部是 `document.createElement`）。
+  新增 UI 文件时先确认它属于哪一套。
+- 注意 Obsidian 的默认规则**只设 `background-color / color / box-shadow`，不设 `border`**。
+  所以插件自己写的 `border: 1px solid …` 是会生效的 → 渲染成「主题灰底 + 一圈硬边框 + 内描边」三重 chrome。
+  改用原生按钮皮时（面板类按钮）要显式补 `border: none; box-shadow: none; appearance: none;`，
+  底色用 `--interactive-normal` → hover `--interactive-hover` → 按下 `--background-modifier-active-hover`。
+  纯图标按钮走另一套：`--icon-color` / `--icon-opacity` / `--background-modifier-hover`。
+- 判断该「提权保留原设计」还是「改成原生按钮皮」：看原始规则**有没有显式写 `background` / `border`**。
+  写了 = 有设计意图，提权保留（查找/图层/标签/弹窗按钮）；没写 = 本想透明/无框，提权后要显式补透明。
+- `clickable-icon` 只给**纯图标按钮**挂；文字按钮不要挂（那是图标专用类，会带来 `padding` 与 `--icon-color`）。
 - 提权后**基础类会压过自己的组合类**（`.btn` 提到 (0,2,0) 后 `.btn-text` 的 (0,1,0) 失效），
   组合类要一起提权；`:hover` / `.is-active` 本身算 (0,2,0)，与提权后的基础规则同分，**必须写在后面**。
 - 提权是「把控制权还给按钮自己」，不是「统一刷成透明」：有边框有底色的按钮（查找、图层、标签、弹窗）
@@ -41,6 +54,11 @@
   surface0 `#ccd0da` / text `#4c4f69` / overlay 系 `#6c6f85`。截图里出现这几个值基本就能确定主题。
 - 无 PIL 时看截图：纯 `python -c` + `zlib` 手写 PNG 解码（filter type 0~4 逐行还原），
   做「按色距离分类的 ASCII 图」+ 逐像素扫描，足够判断按钮有没有底色/描边、边界落在哪个 x。
+- 写「修复前 / 修复后」对照原型（`prototypes/*.html`）的两个硬要求：
+  ① 必须把 `button:not(.clickable-icon)` 那条规则**抄进原型的 `<style>`**，否则左侧看起来是好的；
+  ② 用 `.before :where(.my-btn) { 原始声明 }` 给左侧**还原真实特异性 (0,1,0)** ——
+  直接写 `.before .my-btn` 会抬到 (0,2,0) 反而压过 Obsidian 规则，左侧就坏不掉了。
+  组合类要写成 `:where(.my-btn).active`（`:where()` 会把参数内全部特异性归零）。
 
 ## 视图铺满叶子
 - Obsidian `.workspace-leaf-content .view-content` 默认有 padding（尤其下 32px），插件容器 `height:100%` 只拿到内容盒高度 → 四周露白。
