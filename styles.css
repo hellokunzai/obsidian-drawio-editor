@@ -307,6 +307,18 @@ body.drawio-palette-resizing {
   color: var(--text-normal);
 }
 
+/* 撤销 / 重做没有可回退（前进）的历史时置灰。
+   选择器 (0,3,0)，压得住主题的 `button:disabled`；保留 pointer-events，
+   这样鼠标放上去还能看到 tooltip 说明。 */
+.drawio-toolbar .drawio-toolbar-btn:disabled,
+.drawio-toolbar .drawio-toolbar-btn:disabled:hover,
+.drawio-toolbar .drawio-toolbar-btn:disabled:active {
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0.8;
+  cursor: default;
+}
+
 /* 图标尺寸写死在 CSS：避免主题的 .clickable-icon svg 规则改动图标大小 */
 .drawio-toolbar .drawio-toolbar-btn > svg {
   pointer-events: none;

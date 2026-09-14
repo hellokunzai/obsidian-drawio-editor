@@ -1,6 +1,6 @@
 # 项目记忆
 
-> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.7。
+> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.8。
 > 跨会话成立的事实与踩坑结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
 
 ## 技术栈与工作流
@@ -54,11 +54,26 @@
   surface0 `#ccd0da` / text `#4c4f69` / overlay 系 `#6c6f85`。截图里出现这几个值基本就能确定主题。
 - 无 PIL 时看截图：纯 `python -c` + `zlib` 手写 PNG 解码（filter type 0~4 逐行还原），
   做「按色距离分类的 ASCII 图」+ 逐像素扫描，足够判断按钮有没有底色/描边、边界落在哪个 x。
-- 写「修复前 / 修复后」对照原型（`prototypes/*.html`）的两个硬要求：
+- 写「修复前 / 修复后」对照原型（`prototypes/*.html`）的三个硬要求：
   ① 必须把 `button:not(.clickable-icon)` 那条规则**抄进原型的 `<style>`**，否则左侧看起来是好的；
   ② 用 `.before :where(.my-btn) { 原始声明 }` 给左侧**还原真实特异性 (0,1,0)** ——
   直接写 `.before .my-btn` 会抬到 (0,2,0) 反而压过 Obsidian 规则，左侧就坏不掉了。
   组合类要写成 `:where(.my-btn).active`（`:where()` 会把参数内全部特异性归零）。
+  ③ **对照的重点是什么，就让两边只差那一件事**：v0.16.8 比的是图标，两边就都挂 `clickable-icon`
+  （与真机一致）让 Obsidian 规则不参与；若这时还硬套 ② 把左侧弄坏，重点就跑偏了。
+
+## 图标体系（v0.16.8 起）
+- 工具栏图标集中在 `DrawioView.ts#getIconDef()`，返回 `IconDef { svg, filled?, viewBox? }`；
+  `renderIcon()` 据 `filled` 输出 `fill="currentColor" stroke="none"` 或描边渲染。
+- **实心图标的 viewBox 必须紧贴字形**：字形扁（如 undo/redo 是 2.27:1）时，塞进 24×24 方框会被
+  `meet` 缩成细线。undo `1.9 6.9 20.7 9.2` / redo `1.4 6.9 20.8 9.2`（Material filled `undo`/`redo`）。
+  校验手法：用 node 走一遍 path 命令（M/L/H/V/C，绝对+相对）算字形包围盒，和 viewBox 比「未裁切 + 紧贴」。
+- **内联 `<svg width/height>` 会被 CSS 静默覆盖**：`.drawio-toolbar .drawio-toolbar-btn > svg { width:16px }`
+  赢过 presentation attribute。图标尺寸只保留 CSS 一处，`renderIcon()` 不输出 width/height。
+- 撤销 / 重做按 `undoManager.canUndo()/canRedo()` 置灰（`refreshUndoRedoState()`；调用点见当日日志）。
+  置灰 CSS 要连 `:hover` / `:active` 一起覆盖（(0,3,0)），并保留 pointer-events 让 tooltip 还在。
+- 从用户截图复刻图标的取证法（不靠猜）：python+zlib 手写 PNG 解码 → 逐像素 ASCII，看**字形包围盒、
+  宽高比、有没有竖直的实心边、弧线甩向**，据此判定属于哪个图标族（本项目是 Material Design）。
 
 ## 视图铺满叶子
 - Obsidian `.workspace-leaf-content .view-content` 默认有 padding（尤其下 32px），插件容器 `height:100%` 只拿到内容盒高度 → 四周露白。

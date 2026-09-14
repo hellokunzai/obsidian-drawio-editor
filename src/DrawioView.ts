@@ -65,6 +65,14 @@ interface ToolPanelLike {
   close(): void;
 }
 
+/** 工具栏图标定义：filled 走实心填充，否则按线性描边渲染 */
+interface IconDef {
+  svg: string;
+  filled?: boolean;
+  /** 默认 "0 0 24 24"；字形很扁的图标给紧贴字形的 viewBox，才不会被缩成细线 */
+  viewBox?: string;
+}
+
 export class DrawioView extends FileView {
   plugin: DrawioPlugin;
   private graph: any = null;
@@ -132,6 +140,9 @@ export class DrawioView extends FileView {
   /** 右侧面板轨道，供「格式」开关整块隐藏 */
   private railEl: HTMLElement | null = null;
   private viewBtnEl: HTMLElement | null = null;
+  /** 工具栏撤销 / 重做按钮，用于按历史栈可用性切换置灰态 */
+  private undoBtnEl: HTMLButtonElement | null = null;
+  private redoBtnEl: HTMLButtonElement | null = null;
   private viewMenu: ViewMenu | null = null;
   private ruler: Ruler | null = null;
   private findPanel: FindReplacePanel | null = null;
@@ -724,8 +735,8 @@ export class DrawioView extends FileView {
     }
 
     const btns: ToolBtn[] = [
-      { id: "undo", icon: "rotate-ccw", title: t("toolbar.undo"), action: () => this.undo() },
-      { id: "redo", icon: "rotate-cw", title: t("toolbar.redo"), action: () => this.redo() },
+      { id: "undo", icon: "undo", title: t("toolbar.undo"), action: () => this.undo() },
+      { id: "redo", icon: "redo", title: t("toolbar.redo"), action: () => this.redo() },
       { sep: true },
       { id: "zoomIn", icon: "zoom-in", title: t("toolbar.zoomIn"), action: () => this.graph?.zoomIn() },
       { id: "zoomOut", icon: "zoom-out", title: t("toolbar.zoomOut"), action: () => this.graph?.zoomOut() },
@@ -748,18 +759,60 @@ export class DrawioView extends FileView {
         cls: "clickable-icon drawio-toolbar-btn",
         attr: { title: btn.title || "" },
       });
-      el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${this.getIconSvg(btn.icon || "")}</svg>`;
+      el.innerHTML = this.renderIcon(btn.icon || "");
+      if (btn.id === "undo") this.undoBtnEl = el;
+      if (btn.id === "redo") this.redoBtnEl = el;
       el.addEventListener("click", (e) => {
         e.preventDefault();
         btn.action?.();
       });
     }
+    this.refreshUndoRedoState();
   }
 
-  private getIconSvg(icon: string): string {
-    const icons: Record<string, string> = {
-      "rotate-ccw": '<path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 0 3-7.7L3 8"/>',
-      "rotate-cw": '<path d="M21 2v6h-6"/><path d="M21 8a9 9 0 1 1-3-7.7L21 8"/>',
+  /**
+   * 撤销 / 重做的可用态：没有可撤销（重做）的历史时置灰。
+   * 与参考样式一致（灰掉的 redo），也避免点了没反应的错觉。
+   */
+  private refreshUndoRedoState(): void {
+    const mgr = this.undoManager;
+    const can = (fn: "canUndo" | "canRedo"): boolean =>
+      !mgr || typeof mgr[fn] !== "function" ? true : !!mgr[fn]();
+    if (this.undoBtnEl) this.undoBtnEl.disabled = !can("canUndo");
+    if (this.redoBtnEl) this.redoBtnEl.disabled = !can("canRedo");
+  }
+
+  /** 渲染工具栏图标：filled 图标走实心填充，其余按线性描边 */
+  private renderIcon(icon: string): string {
+    const def = this.getIconDef(icon);
+    if (!def.svg) return "";
+    const viewBox = def.viewBox ?? "0 0 24 24";
+    const paint = def.filled
+      ? 'fill="currentColor" stroke="none"'
+      : 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    // 尺寸交给 CSS（.drawio-toolbar .drawio-toolbar-btn > svg），别再写死在这里，
+    // 否则两处尺寸不一致时 CSS 会静默赢，排查起来白费功夫。
+    return `<svg viewBox="${viewBox}" ${paint}>${def.svg}</svg>`;
+  }
+
+  private getIconDef(icon: string): IconDef {
+    // 撤销 / 重做用实心弯箭头（经典撤销图标），线条图标表达不出「回退」的方向感。
+    // 字形本身很扁（约 2.2:1），viewBox 紧贴字形，这样在方画布里也不会被缩成一条细线。
+    const filled: Record<string, IconDef> = {
+      undo: {
+        filled: true,
+        viewBox: "1.9 6.9 20.7 9.2",
+        svg: '<path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>',
+      },
+      redo: {
+        filled: true,
+        viewBox: "1.4 6.9 20.8 9.2",
+        svg: '<path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/>',
+      },
+    };
+    if (filled[icon]) return filled[icon];
+
+    const stroke: Record<string, string> = {
       "zoom-in": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/>',
       "zoom-out": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
       maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
@@ -769,7 +822,7 @@ export class DrawioView extends FileView {
       download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
       save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
     };
-    return icons[icon] || "";
+    return { svg: stroke[icon] || "" };
   }
 
   private initGraphEditor(): void {
@@ -809,6 +862,8 @@ export class DrawioView extends FileView {
     const undoListener = (sender: any, evt: any) => {
       this.undoManager.undoableEditHappened(evt.getProperty("edit"));
       this.markDirty();
+      // 历史栈变了，撤销 / 重做的可用态跟着变
+      this.refreshUndoRedoState();
     };
     this.graph.getModel().addListener(MxEvent.NOTIFY, undoListener);
     this.graph.getView().addListener(MxEvent.UNDO, undoListener);
@@ -853,6 +908,8 @@ export class DrawioView extends FileView {
     this.setupCanvasShortcuts();
     this.attachViewFeatures();
     this.applyViewSettings();
+    // 撤销管理器此时才建好：初始历史栈为空 → 两个按钮置灰
+    this.refreshUndoRedoState();
   }
 
   /**
@@ -2429,6 +2486,8 @@ export class DrawioView extends FileView {
     if (this.undoManager && typeof this.undoManager.clear === "function") {
       this.undoManager.clear();
     }
+    // 新页历史栈是空的，撤销 / 重做回到置灰态
+    this.refreshUndoRedoState();
     // 图层显隐 / 锁定要重新落到新页的图形上（幂等，没变化时不会产生脏标记）
     this.layersPanel?.applyAllLayerStates();
     this.updateGridBackground();
@@ -2746,11 +2805,13 @@ export class DrawioView extends FileView {
   private undo(): void {
     if (!this.undoManager) return;
     this.undoManager.undo();
+    this.refreshUndoRedoState();
   }
 
   private redo(): void {
     if (!this.undoManager) return;
     this.undoManager.redo();
+    this.refreshUndoRedoState();
   }
 
   private deleteSelected(): void {
@@ -2834,6 +2895,8 @@ export class DrawioView extends FileView {
     this.railEl = null;
     this.canvasAreaEl = null;
     this.viewBtnEl = null;
+    this.undoBtnEl = null;
+    this.redoBtnEl = null;
     this.currentLayerId = DEFAULT_LAYER_ID;
     this.graphContainer = null;
     this.canvasScrollEl = null;
