@@ -1,10 +1,4 @@
 
-var OLD = [
-  ["#ffffff","#333333"],["#dbeafe","#167dff"],["#dcfce7","#16a34a"],["#fef3c7","#d97706"],
-  ["#fee2e2","#dc2626"],["#f3e8ff","#7c3aed"],["#fde68a","#b45309"],["#bfdbfe","#1d4ed8"],
-  ["#333333","#000000"],["#167dff","#0f5fd6"],["#16a34a","#15803d"],["#dc2626","#991b1b"]
-];
-
 /* 与 src/FormatPanel.ts 的 STYLE_PRESET_PAGES 完全一致 */
 var PAGES = [
   [{fill:"#ffffff",stroke:"#000000"},{fill:"#f5f5f5",stroke:"#666666"},{fill:"#dae8fc",stroke:"#6c8ebf"},{fill:"#d5e8d4",stroke:"#82b366"},
@@ -21,7 +15,7 @@ var PAGES = [
    {fill:"#cce5ff",stroke:"#36393d"},{fill:"#ffff88",stroke:"#36393d"},{fill:"#cdeb8b",stroke:"#36393d"},{fill:"#ffcccc",stroke:"#36393d"}]
 ];
 
-/* 页签行（三列共用） */
+/* 页签行（两列共用） */
 Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function (host) {
   ["样式", "文本", "排列"].forEach(function (label, i) {
     var b = document.createElement("button");
@@ -30,17 +24,6 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function 
     host.appendChild(b);
   });
 });
-
-/* ① 更早那版：对角双色块 */
-(function () {
-  var oldGrid = document.getElementById("oldGrid");
-  OLD.forEach(function (p) {
-    var d = document.createElement("div");
-    d.className = "sw";
-    d.style.background = "linear-gradient(135deg, " + p[0] + " 0 50%, " + p[1] + " 50% 100%)";
-    oldGrid.appendChild(d);
-  });
-})();
 
 /* ②③ 同一套轮播组件：各自独立翻页，互不干扰 */
 function mountPalette(root) {

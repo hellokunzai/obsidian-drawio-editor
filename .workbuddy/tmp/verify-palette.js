@@ -183,12 +183,15 @@ const ver = JSON.parse(fs.readFileSync(path.join(ROOT, "versions.json"), "utf8")
 (man.version === pkg.version && ver[man.version] ? ok : bad)(
   `manifest=${man.version} package=${pkg.version} versions[${man.version}]=${ver[man.version]}`);
 
-// ---- 6. 「填充」标题栏 → 分割线（v0.17.1）----
+// ---- 6. 「填充 / 线条 / 效果」标题栏 → 分割线（v0.17.1 填充组，v0.17.2 补上线条/效果）----
 console.log("分割线改造");
-if (/this\.section\(\s*t\("format\.fill"\)/.test(src)) bad("填充组仍在用可折叠标题栏 this.section(...)");
-else ok("填充组已不再渲染标题栏");
-if (!/this\.flatSection\(\(body\) => \{/.test(src)) bad("找不到 this.flatSection((body) => { 调用点");
-else ok("填充组改用 this.flatSection(...)");
+for (const gone of ["format.fill", "format.stroke", "format.effects"]) {
+  const re = new RegExp(`this\\.section\\(\\s*t\\("${gone.replace(/\./g, "\\.")}"\\)`);
+  if (re.test(src)) bad(`${gone} 组仍在用可折叠标题栏 this.section(...)`);
+}
+ok("填充 / 线条 / 效果三组都已不再渲染标题栏");
+const flatCalls = (src.match(/this\.flatSection\(\(body\) => \{/g) || []).length;
+(flatCalls === 3 ? ok : bad)(`flatSection 调用点 ${flatCalls} 处（应为 3：填充 / 线条 / 效果）`);
 const flatDefs = (src.match(/private flatSection\(/g) || []).length;
 (flatDefs === 1 ? ok : bad)(`flatSection 定义 ${flatDefs} 处（应为 1）`);
 // 扁平分组内部：分割线是第一个子元素，且首行不是 margin-bottom:0（:last-child 才是）
@@ -197,13 +200,29 @@ if (flatImpl && /h\("div", "drawio-fmt-flat"\)/.test(flatImpl[0]) &&
     /appendChild\(h\("div", "drawio-fmt-divider"\)\)/.test(flatImpl[0]))
   ok("flatSection = .drawio-fmt-flat > .drawio-fmt-divider，内容直接追加（:last-child 语义与旧 section 一致）");
 else bad("flatSection 结构不符预期");
-// 「填充」文案本身必须还在（它是下面那一行的勾选框标签，不能连文案一起删掉）
-const fillLabelUses = (src.match(/t\("format\.fill"\)/g) || []).length;
-(fillLabelUses === 1 ? ok : bad)(`t("format.fill") 剩 ${fillLabelUses} 处（应为 1：勾选框标签）`);
-for (const keep of ["format.gradient", "format.stroke"]) {
+// 文案本身必须还在：填充 / 线条 = 勾选框标签；效果 = 去掉标题后的 aria-label
+const cnt = (s) => (src.match(new RegExp(`t\\("${s.replace(/\./g, "\\.")}"\\)`, "g")) || []).length;
+(cnt("format.fill") === 1 ? ok : bad)(`t("format.fill") 剩 ${cnt("format.fill")} 处（应为 1：勾选框标签）`);
+(cnt("format.stroke") === 1 ? ok : bad)(`t("format.stroke") 剩 ${cnt("format.stroke")} 处（应为 1：勾选框标签）`);
+(cnt("format.effects") === 1 ? ok : bad)(`t("format.effects") 剩 ${cnt("format.effects")} 处（应为 1：aria-label）`);
+for (const keep of ["format.gradient", "format.opacity"]) {
   if (!src.includes(`t("${keep}")`)) bad(`文案 key 丢失: ${keep}`);
 }
-ok("渐变 / 线条文案仍在");
+ok("渐变 / 不透明度文案仍在");
+// 标题栏没了不能把语义一起丢掉
+if (/setAttribute\("role", "group"\)/.test(src) && /setAttribute\("aria-label", t\("format\.effects"\)\)/.test(src))
+  ok("效果组补了 role=group + aria-label（读屏仍能听到「效果」）");
+else bad("效果组缺少 role/aria-label，标题栏去掉后语义丢失");
+
+// 不透明度必须并进线条组：否则 row2 会命中 :last-child 把行距归零、和线型控件贴在一起
+const sp = src.match(/private buildStylePane\(\)[\s\S]*?\n  \}/);
+if (!sp) bad("找不到 buildStylePane 方法体");
+else {
+  if (/body\.appendChild\(opRow\)/.test(sp[0])) ok("不透明度行已并入线条扁平组（body.appendChild(opRow)）");
+  else bad("不透明度行没并进线条组");
+  if (/pane\.appendChild\(opRow\)/.test(sp[0])) bad("样式面板里仍把不透明度行挂在分组之外");
+  else ok("样式面板里不再有组外的 opRow");
+}
 if (src.includes("drawio-fmt-group\"") || /"drawio-fmt-group"/.test(css))
   bad("残留已弃用的 .drawio-fmt-group 命名（与 .drawio-fmt-group-title/-body 语义撞车）");
 else ok("无 .drawio-fmt-group 命名残留");
@@ -223,8 +242,8 @@ const spec = (sel) => {
 const flatRule = css.match(/([^\n{}]*drawio-fmt-flat[^\n{}]*drawio-fmt-divider[^\n{}]*)\{([^{}]*)\}/);
 if (!flatRule) bad("CSS 缺少 .drawio-fmt-flat > .drawio-fmt-divider 规则");
 else {
-  if (/margin:\s*0 0 10px/.test(flatRule[2])) ok("分割线上边 0 / 下边 10px");
-  else bad("分割线间距不是 margin: 0 0 10px —— " + flatRule[2].trim());
+  if (/margin:\s*11px 0 10px/.test(flatRule[2])) ok("三条分割线上边 11px / 下边 10px");
+  else bad("分割线间距不是 margin: 11px 0 10px —— " + flatRule[2].trim());
   const base = css.match(/([^\n{}]*\.drawio-fmt-divider[^\n{}]*)\{([^{}]*margin:[^{}]*)\}/);
   if (!base) bad("找不到基础 .drawio-fmt-divider 规则");
   else {
@@ -232,16 +251,24 @@ else {
     (w > l ? ok : bad)(`特异性 ${w} > ${l}（扁平分割线生效，基础 12px 间距被覆盖）`);
   }
 }
+// 首组（紧接配色轮播那条）不能叠加：palette 的 margin-bottom 11px + divider 的 margin-top 11px = 22px
+const firstFlat = css.match(/([^\n{}]*drawio-fmt-palette\s*\+\s*\.drawio-fmt-flat[^\n{}]*drawio-fmt-divider[^\n{}]*)\{([^{}]*)\}/);
+if (!firstFlat) bad("CSS 缺少 .drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider 覆盖规则");
+else {
+  if (!/margin-top:\s*0/.test(firstFlat[2])) bad("首组分割线没有清零 margin-top（会叠成 22px）");
+  else if (spec(firstFlat[1]) <= spec(flatRule[1])) bad(`首组覆盖规则特异性 ${spec(firstFlat[1])} 未超过基础扁平规则 ${spec(flatRule[1])}`);
+  else ok(`首组分割线 margin-top 归零，且特异性 ${spec(firstFlat[1])} > ${spec(flatRule[1])}`);
+}
 const pal = css.match(/\.drawio-fmt-palette\s*\{([^{}]*)\}/);
 if (pal && /margin-bottom:\s*11px/.test(pal[1])) ok("配色轮播 margin-bottom: 11px（对齐参考图 dots→分割线 11px）");
 else bad("配色轮播 margin-bottom 不是 11px —— " + (pal ? pal[1].trim() : "无规则"));
 // 旧规则不该被顺手改掉：基础 .drawio-fmt-divider 仍是 12px
-if (/\.drawio-fmt-divider\s*\{[^{}]*margin:\s*12px 0/.test(css)) ok("基础 .drawio-fmt-divider 仍是 12px（文本面板不受影响）");
+if (/\.drawio-fmt-divider\s*\{[^{}]*margin:\s*12px 0/.test(css)) ok("基础 .drawio-fmt-divider 仍是 12px（文本/排列面板不受影响）");
 else bad("基础 .drawio-fmt-divider 的 12px 间距被改动");
 if (un.includes("drawio-fmt-flat") && un.includes("drawio-fmt-divider"))
   ok("产物含 .drawio-fmt-flat / .drawio-fmt-divider");
 else bad("产物缺少 drawio-fmt-flat / drawio-fmt-divider");
-if (un.includes("drawio-fmt-section-header")) ok("其它分区（线条/效果）仍保留可折叠标题栏");
+if (un.includes("drawio-fmt-section-header")) ok("文本/排列面板仍保留可折叠标题栏（section 未被整体删掉）");
 else bad("drawio-fmt-section-header 从产物里消失了");
 
 // ---- 7. 原型必须和落地实现同步（否则预览会骗人）----
@@ -282,23 +309,36 @@ else {
     if (!diff) ok("原型 PAGES（48 组）与 src/FormatPanel.ts / 参考图三方一致");
   } catch (e) { bad("原型 PAGES 求值失败: " + e.message); }
 }
-// 三列对照是否齐、②③ 是否共用同一套 palette 结构
+// 两列对照是否齐、②③ 是否共用同一套 palette 结构
 const cols = (proto.match(/class="sidebar"/g) || []).length;
-(cols === 3 ? ok : bad)(`对照列数 ${cols}（① 3×4 / ② v0.17.0 / ③ v0.17.1 应为 3）`);
+(cols === 2 ? ok : bad)(`对照列数 ${cols}（② 现状 / ③ 本次 应为 2）`);
 const pals = (proto.match(/class="drawio-fmt-palette" data-palette/g) || []).length;
 (pals === 2 ? ok : bad)(`data-palette 挂载点 ${pals}（②③ 应各一个）`);
-if (proto.includes('class="drawio-fmt-flat"') && proto.includes('class="drawio-fmt-divider"'))
-  ok("③ 列用 .drawio-fmt-flat + .drawio-fmt-divider（与落地标记一致）");
-else bad("③ 列缺少分割线结构");
-// ② 列必须保留「填充」标题栏 + 旧的 14px 间距，否则对照就失真了
-if (/\.col-v170 \.drawio-fmt-palette\s*\{\s*margin-bottom:\s*14px/.test(proto))
-  ok("② 列用 .col-v170 还原旧的 palette 下边距 14px");
-else bad("② 列没有还原 14px 的旧间距，对照会失真");
+// ③ 必须是 3 个扁平分组；② 只有填充组是扁平的，线条/效果仍是标题栏
+const flats = (proto.match(/class="drawio-fmt-flat"/g) || []).length;
+(flats === 4 ? ok : bad)(`.drawio-fmt-flat 出现 ${flats} 次（② 填充 1 + ③ 三组 3 = 4）`);
+const secs = (proto.match(/class="drawio-fmt-section open"/g) || []).length;
+(secs === 2 ? ok : bad)(`② 列保留 ${secs} 个可折叠标题栏（线条 + 效果，应为 2）`);
+if (proto.includes('<span>线条</span>') && proto.includes('<span>效果</span>'))
+  ok("② 列仍渲染「线条」「效果」标题栏（对照的另一端）");
+else bad("② 列缺少「线条 / 效果」标题栏，对照会失真");
+// 只看标记部分：下方的说明块里也提到了「不透明度」，别把它算进来
+const notesAt = proto.indexOf('class="notes"');
+const markup = proto.slice(0, notesAt > 0 ? notesAt : proto.length);
+if ((markup.match(/>不透明度</g) || []).length === 2)
+  ok("「不透明度」在②（组外）/③（组内）各出现一次");
+else bad(`「不透明度」出现 ${(markup.match(/>不透明度</g) || []).length} 次（②③ 应各一次）`);
+const lastFlat = markup.lastIndexOf('class="drawio-fmt-flat"');
+const tail = markup.slice(lastFlat);
+if (!/不透明度/.test(tail) && /drawio-fmt-effects-grid/.test(tail))
+  ok("③ 最后一条分割线下面只有效果勾选框（不透明度在线之上）");
+else bad("③ 的效果组里混进了其它行");
 // 原型 CSS 的关键数值必须与 styles.css 一致
 const want = [
   [/\.drawio-fmt-palette\s*\{\s*margin-bottom:\s*11px/, "palette margin-bottom 11px"],
   [/\.drawio-fmt-divider\s*\{[^}]*margin:\s*12px 0/, "基础 divider 12px"],
-  [/\.drawio-fmt-flat > \.drawio-fmt-divider\s*\{\s*margin:\s*0 0 10px/, "扁平 divider 0/10px"],
+  [/\.drawio-fmt-flat > \.drawio-fmt-divider\s*\{\s*margin:\s*11px 0 10px/, "扁平 divider 11/10px"],
+  [/\.drawio-fmt-palette \+ \.drawio-fmt-flat > \.drawio-fmt-divider\s*\{\s*margin-top:\s*0/, "首组 margin-top 归零"],
   [/aspect-ratio:\s*1\.5/, "色块 1.5 宽高比"],
   [/width:\s*9px; height:\s*9px/, "圆点 9px"],
   [/gap:\s*9px; margin-top:\s*10px/, "圆点间距 9px"],

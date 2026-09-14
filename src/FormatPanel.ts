@@ -330,9 +330,9 @@ export class FormatPanel {
       })
     );
 
-    // 线条
+    // 线条：同样只留一条分割线，标题由下面勾选框的「线条」二字承担
     pane.appendChild(
-      this.section(t("format.stroke"), (body) => {
+      this.flatSection((body) => {
         const row1 = h("div", "drawio-fmt-row");
         this.strokeCheck = h("input") as HTMLInputElement;
         this.strokeCheck.type = "checkbox";
@@ -387,56 +387,57 @@ export class FormatPanel {
         );
         row2.appendChild(this.strokeWidth);
         body.appendChild(row2);
+
+        // 不透明度：并入线条组（与 draw.io 一致）。
+        // 它同时让 row2 不再是末行，从而保住 .drawio-fmt-row 的 10px 行距——
+        // 否则 row2 命中 :last-child 归零，不透明度会与线型控制贴在一起。
+        const opRow = h("div", "drawio-fmt-row");
+        opRow.appendChild(h("span", "drawio-fmt-label", t("format.opacity")));
+        this.styleOpacity = this.numberField("%", "100", (v) =>
+          this.applyStyle(
+            this.MxConstants.STYLE_OPACITY,
+            String(Math.min(100, Math.max(0, v)))
+          )
+        );
+        opRow.appendChild(this.styleOpacity);
+        body.appendChild(opRow);
       })
     );
 
-    // 不透明度
-    const opRow = h("div", "drawio-fmt-row");
-    opRow.appendChild(h("span", "drawio-fmt-label", t("format.opacity")));
-    this.styleOpacity = this.numberField("%", "100", (v) =>
-      this.applyStyle(
-        this.MxConstants.STYLE_OPACITY,
-        String(Math.min(100, Math.max(0, v)))
-      )
-    );
-    opRow.appendChild(this.styleOpacity);
-    pane.appendChild(opRow);
-
-    // 效果
+    // 效果：同样只留一条分割线（draw.io 这一组本来也不带标题栏）
     pane.appendChild(
-      this.section(
-        t("format.effects"),
-        (body) => {
-          const grid = h("div", "drawio-fmt-effects-grid");
-          const mkCheck = (label: string, key: string) => {
-            const check = h("input") as HTMLInputElement;
-            check.type = "checkbox";
-            const lbl = h("label", "drawio-fmt-check");
-            lbl.appendChild(check);
-            lbl.appendChild(h("span", undefined, label));
-            check.addEventListener("change", () =>
-              this.applyStyle(key, check.checked ? "1" : null)
-            );
-            grid.appendChild(lbl);
-            return check;
-          };
-          this.roundedCheck = mkCheck(
-            t("format.rounded"),
-            this.MxConstants.STYLE_ROUNDED
+      this.flatSection((body) => {
+        const grid = h("div", "drawio-fmt-effects-grid");
+        // 标题栏去掉后「效果」二字就没地方显示了，用 role=group + aria-label 把语义留给读屏
+        grid.setAttribute("role", "group");
+        grid.setAttribute("aria-label", t("format.effects"));
+        const mkCheck = (label: string, key: string) => {
+          const check = h("input") as HTMLInputElement;
+          check.type = "checkbox";
+          const lbl = h("label", "drawio-fmt-check");
+          lbl.appendChild(check);
+          lbl.appendChild(h("span", undefined, label));
+          check.addEventListener("change", () =>
+            this.applyStyle(key, check.checked ? "1" : null)
           );
-          this.sketchCheck = mkCheck(t("format.sketch"), "sketch");
-          this.glassCheck = mkCheck(
-            t("format.glass"),
-            this.MxConstants.STYLE_GLASS
-          );
-          this.shadowCheck = mkCheck(
-            t("format.shadow"),
-            this.MxConstants.STYLE_SHADOW
-          );
-          body.appendChild(grid);
-        },
-        true
-      )
+          grid.appendChild(lbl);
+          return check;
+        };
+        this.roundedCheck = mkCheck(
+          t("format.rounded"),
+          this.MxConstants.STYLE_ROUNDED
+        );
+        this.sketchCheck = mkCheck(t("format.sketch"), "sketch");
+        this.glassCheck = mkCheck(
+          t("format.glass"),
+          this.MxConstants.STYLE_GLASS
+        );
+        this.shadowCheck = mkCheck(
+          t("format.shadow"),
+          this.MxConstants.STYLE_SHADOW
+        );
+        body.appendChild(grid);
+      })
     );
 
     return pane;

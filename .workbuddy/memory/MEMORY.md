@@ -1,12 +1,16 @@
 # 项目记忆
 
-> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.17.1。
+> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.17.2。
 > 跨会话成立的事实与踩坑结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
 
 ## 编辑纪律（吃过两次亏）
 - **同一文件的多次 Edit 必须串行**：一条消息里发两条 Edit 到同一文件，后写入的会**整条冲掉**前一条，
   而工具两次都回 success。v0.16.4、v0.17.1 各踩一次（都是靠收尾校验脚本才发现）。跨文件批量没问题。
 - 改完关键文件**Read 回读确认**，别信 success 回执。
+- **校验脚本报错时，先怀疑断言本身，别急着改代码。** v0.17.2 两条 ❌ 全是检查脚本写错：
+  ① 拿 `<span>不透明度</span>` 匹配，而原型的 span 带 class（`<span class="…">`）；
+  ② 尾切片从「最后一个目标元素」切到文件末尾，把下方说明块里的同名文字也算了进去。
+  写断言时优先用「只可能出现在目标位置」的锚点，或先把说明/文档区域切掉再匹配。
 
 ## 技术栈与工作流
 - TypeScript + esbuild，依赖 mxgraph 4.2.2（`src/mxClient.min.js`，打包进产物）+ pako。
@@ -125,17 +129,26 @@
 - `matchStylePreset()` 的坑：#ffffff/#000000 在 5 页里重复，**必须先扫当前可见页再回退全局首个**，
   否则每次选中都无谓跳页。页内 8 组无重复。
 - 点「纯色预设」要**显式清掉 gradientColor**，否则样式对不上、高亮永远命不中。
-- **v0.17.1：「填充」那一格不是分区，是一条分割线。** 填充组走 `FormatPanel#flatSection()`
-  （`.drawio-fmt-flat` > `.drawio-fmt-divider` + 内容，无标题栏、不可折叠），
-  线条 / 效果仍用 `section()` 的折叠标题栏。间距：`.drawio-fmt-palette` 下边距 11px → 分割线（1px）→ 10px → 首行；
-  分割线上边距写 0，靠 `margin` 折叠拿上面那 11px。分割线复用 `.drawio-fmt-divider`，
-  但用 `.drawio-fmt-flat > .drawio-fmt-divider` (0,2,0) 覆盖成 `0 0 10px`，
-  **基础规则保持 `margin: 12px 0`**（文本 Tab 那条分割线依赖它）。
-  命名别用 `.drawio-fmt-group*` —— 仓库里已有语义不同的 `.drawio-fmt-group-title` / `-body`。
-- 真机渲染实测（2x 无头截图，v0.17.1）：色块含边框 46.5×31.0 = **1.500**（证明 `aspect-ratio` 在 `<button>`
-  上生效、没被主题 `button { height }` 破坏）、圆点 9×9、圆点→分割线 11px、分割线→首行 10px、
-  分割线左右各内缩 12px（与「线条」分区 border 起止重合）。
-- 原型 `prototypes/style-palette-carousel.html` 是**三列**（① 3×4 对角双色块 ② 轮播+标题栏 ③ 轮播+分割线），
-  渲染图 `prototypes/style-palette-carousel.png`。②③ 共用同一份 CSS，只差一件事。
-  写这类原型时**控件细节也要照抄真相**：曾把色块写成 `margin-left: auto` 推到最右，
-  而 `.drawio-fmt-color` 实际是 `flex-shrink: 0`（紧跟文字）、`.drawio-fmt-select` 才是 `flex: 1`。
+- **v0.17.1 / v0.17.2：样式 Tab 的三组（填充 / 线条 / 效果）都不是分区，是一条分割线。**
+  三组都走 `FormatPanel#flatSection()`（`.drawio-fmt-flat` > `.drawio-fmt-divider` + 内容，无标题栏、不可折叠）。
+  `section()` 仍被**文本 / 排列**面板的 4 个分组用着，不能删。
+  「线条」二字仍在下行勾选框标签上；**「效果」二字只能靠 `role="group"` + `aria-label` 保留语义**
+  （组内 4 个勾选框没有同名字样，标题栏一去掉就彻底不可见）。
+- 分割线间距：**上 11px / 下 10px**。基础 `.drawio-fmt-divider` 仍是 `margin: 12px 0`（文本/排列面板依赖它），
+  扁平组用 `.drawio-fmt-flat > .drawio-fmt-divider` (0,2,0) 覆盖。
+  **首组必须再清零 margin-top**：`.drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider { margin-top: 0 }` (0,3,0)，
+  否则 palette 的 `margin-bottom: 11px` 和新加的 `margin-top: 11px` 叠成 22px，第一条线明显比后两条宽。
+- **`不透明度` 这一行属于「线条」组，必须放在 `flatSection` 回调内部。** 挂在组外时它会命中
+  `.drawio-fmt-row:last-child { margin-bottom: 0 }` 和上一组贴死（旧版正是靠分区的 `border-bottom` 当分隔，
+  实测「不透明度盒顶距那条线仅 1.5px」）。放进组内让 `row2` 不再是末行，10px 行距自动回来。
+- 命名别用 `.drawio-fmt-group*` —— 仓库里已有语义不同的 `.drawio-fmt-group-title` / `-body`。
+- 真机渲染实测（2x 无头截图）：色块含边框 46.5×31.0 = **1.500**（证明 `aspect-ratio` 在 `<button>`
+  上生效、没被主题 `button { height }` 破坏）、圆点 9×9、分割线左右各内缩 12px（与分区 border 起止重合）。
+  v0.17.2 复量三条分割线的「上距/下距」= 11.0/11.5、12.0/10.5、12.0/12.5，且**首条与 v0.17.1 那条完全相同**
+  → 证明 margin-top 归零的覆盖真的生效（没有叠成 22px）。
+- 原型 `prototypes/style-palette-carousel.html` 现在是**两列**（② 现状 ③ 本次），渲染图
+  `prototypes/style-palette-carousel.png`；两列共用同一份 CSS，只差「标题栏 vs 分割线」这一件事。
+  写这类原型时：① **把列宽钉死**（`.boards > div { width: 306px }`），否则 `.cap` 的长标题会把 flex 项撑宽、
+  两列对不齐，量间距时 x 窗口会取错、得到一堆自相矛盾的数；② **控件细节也要照抄真相**：
+  色块是 `flex-shrink: 0`（紧跟文字，`margin-left: auto` 是错的）、`.drawio-fmt-select` 才是 `flex: 1`、
+  数字框 `.drawio-fmt-number` 是自然宽（不拉伸）。

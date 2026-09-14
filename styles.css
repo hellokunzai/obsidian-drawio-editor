@@ -848,10 +848,15 @@ body.drawio-palette-resizing {
   margin: 12px 0;
 }
 
-/* 无标题栏的扁平分组（填充组）：一条分割线与上方内容分隔。
-   分割线上方不留间距 → 间距由 .drawio-fmt-palette 的 margin-bottom 决定；下方 10px 接内容。 */
+/* 无标题栏的扁平分组（填充 / 线条 / 效果）：一条分割线与上方内容分隔。
+   分割线上方 11px（与上一组内容拉开）、下方 10px（接本组首行），与配色轮播那条线一致。 */
 .drawio-fmt-flat > .drawio-fmt-divider {
-  margin: 0 0 10px;
+  margin: 11px 0 10px;
+}
+
+/* 紧接配色轮播的首组：上方间距已由 .drawio-fmt-palette 的 margin-bottom 提供，不再叠加成 22px */
+.drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider {
+  margin-top: 0;
 }
 
 /* 颜色块（内含透明 input[type=color] 覆盖层） */

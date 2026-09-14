@@ -2,15 +2,15 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>样式面板 · 配色轮播 + 分割线 — 实机样式预览</title>
+<title>样式面板 · 三组都改分割线 — 实机样式预览</title>
 <style>
 /* ============================================================
-   三列对照，只想让读者看出「一件事」的差别：
-     ① v0.16.8  3×4 对角双色块 + 「填充」折叠标题栏
-     ② v0.17.0  4×2 轮播         + 「填充」折叠标题栏   ← 你截图里的现状
-     ③ v0.17.1  4×2 轮播         + 一条分割线           ← 本次改动
-   ② 与 ③ 的轮播、色块、圆点、箭头全部共用同一份 CSS（逐字抄自 styles.css），
-   所以两列之间唯一的差别就是「填充」标题栏 vs 分割线（外加 palette 的下边距 14→11px）。
+   两列对照，只想让读者看出「一件事」的差别：
+     ② v0.17.1  「线条」「效果」仍是可折叠标题栏   ← 你截图里的现状
+     ③ v0.17.2  「线条」「效果」也换成一条分割线   ← 本次改动
+   两列的分割线 / 轮播 / 色块 / 圆点 / 箭头 / 行距全部共用同一份 CSS
+   （逐字抄自已落地的 styles.css），所以唯一的差别就是
+   .drawio-fmt-section（标题栏 + border-bottom） vs .drawio-fmt-flat（分割线）。
    右上角可切亮/暗主题（默认按你的 Catppuccin Latte）。
    ============================================================ */
 
@@ -46,7 +46,7 @@ body {
   font-size: 14px; transition: background .2s, color .2s;
 }
 h1 { font-size: 19px; margin: 0 0 6px; font-weight: 600; }
-.sub { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; max-width: 1000px; }
+.sub { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; max-width: 860px; }
 
 .toolbar { position: fixed; top: 18px; right: 22px; }
 .toolbar button {
@@ -58,7 +58,9 @@ h1 { font-size: 19px; margin: 0 0 6px; font-weight: 600; }
 .toolbar button.on { color: var(--accent); border-color: var(--accent); }
 
 .boards { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
-.cap { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); letter-spacing: .3px; }
+/* 固定列宽：否则 .cap 那行长标题会把 flex 项撑宽，两列就对不齐了 */
+.boards > div { flex: 0 0 auto; width: 306px; }
+.cap { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); letter-spacing: .3px; line-height: 1.5; }
 .cap b { color: var(--text); }
 .cap .tag { font-weight: 500; opacity: .75; }
 
@@ -91,18 +93,10 @@ button:not(.clickable-icon) {
   content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 28px; height: 3px; background: var(--accent); border-radius: 2px 2px 0 0;
 }
-.fmt-body { padding: 12px; min-height: 250px; }
-
-/* ---- ① 更早那版：3×4 对角双色块 ---- */
-.old-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
-.old-grid .sw {
-  aspect-ratio: 1.6; border: 1px solid var(--obs-border); border-radius: 4px;
-  cursor: pointer; transition: transform .1s, box-shadow .1s;
-}
-.old-grid .sw:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.fmt-body { padding: 12px; }
 
 /* ============================================================
-   以下与 styles.css 逐字一致（v0.17.1 落地版）
+   以下与 styles.css 逐字一致（v0.17.2 落地版）
    ============================================================ */
 .drawio-fmt-palette { margin-bottom: 11px; }
 
@@ -169,7 +163,7 @@ button:not(.clickable-icon) {
   background: var(--accent); border-color: var(--accent);
 }
 
-/* ---- 分区（②③ 共用；③ 的填充组不再用它，线条组仍用）---- */
+/* ---- ② 还在用的可折叠分区（本次改动后，样式 Tab 里只剩文本/排列面板在用）---- */
 .drawio-fmt-section { border-bottom: 1px solid var(--obs-border); padding: 8px 0; }
 .drawio-fmt-section-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -183,30 +177,43 @@ button:not(.clickable-icon) {
 /* ---- 一行控件 ---- */
 .drawio-fmt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .drawio-fmt-row:last-child { margin-bottom: 0; }
+.drawio-fmt-label { font-size: 13px; min-width: 56px; color: var(--text); }
+.drawio-fmt-effects-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
 
-/* ---- ③ 的分割线（本次改动）---- */
+/* ---- ③ 的三条分割线（本次改动）---- */
 .drawio-fmt-divider { height: 1px; background: var(--obs-border); margin: 12px 0; }
-.drawio-fmt-flat > .drawio-fmt-divider { margin: 0 0 10px; }
-
-/* ---- ② 的旧间距：只覆盖 palette 下边距，其余与 ③ 共用 ---- */
-.col-v170 .drawio-fmt-palette { margin-bottom: 14px; }
+.drawio-fmt-flat > .drawio-fmt-divider { margin: 11px 0 10px; }
+/* 紧接配色轮播的首组：上方间距已由 .drawio-fmt-palette 的 margin-bottom 提供，不叠加 */
+.drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider { margin-top: 0; }
 /* ================= 以上与 styles.css 一致 ================= */
 
-/* 控件外观（原型简化：真插件里是 .drawio-fmt-color / .drawio-fmt-select，
-   宽度 28×22、无 margin-left:auto 也照抄 —— 填充行里色块紧跟在文字后面） */
-.chk { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+/* 控件外观（原型简化：真插件里是 .drawio-fmt-check / -color / -select / -number，
+   宽度 28×22 的色块、右侧数字框都是自然宽、不拉伸） */
+.chk { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
 .cbox { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
-.chip { width: 28px; height: 22px; border-radius: 3px; border: 1px solid var(--obs-border); flex: 0 0 auto; }
+.chip { width: 28px; height: 22px; border-radius: 4px; border: 1px solid var(--obs-border); flex: 0 0 auto; }
 .mini-select {
   font-size: 12px; color: var(--text); background: var(--card-bg);
-  border: 1px solid var(--obs-border); border-radius: 4px;
-  padding: 3px 8px; display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--obs-border); border-radius: 5px;
+  padding: 4px 8px; display: flex; align-items: center; justify-content: space-between;
   gap: 10px; flex: 1; min-width: 0;
 }
 .mini-select .car { font-size: 9px; color: var(--text-muted); }
+/* 线型选择器：真插件里 trigger 内是一条随线型变化的内联 SVG 线 */
+.line-box {
+  flex: 1; min-width: 0; border: 1px solid var(--obs-border); border-radius: 5px;
+  background: var(--card-bg); padding: 5px 8px; color: var(--text);
+}
+.line-box svg { display: block; width: 100%; height: 20px; }
+.num {
+  display: inline-flex; align-items: center; border: 1px solid var(--obs-border);
+  border-radius: 5px; background: var(--card-bg); overflow: hidden; flex: 0 0 auto;
+}
+.num span.v { width: 50px; padding: 5px 6px; font-size: 13px; text-align: right; }
+.num span.u { padding-right: 7px; font-size: 12px; color: var(--text-muted); }
 
 .notes {
-  max-width: 1180px; margin: 28px 0 0; padding: 16px 20px;
+  max-width: 1080px; margin: 28px 0 0; padding: 16px 20px;
   background: var(--card-bg); border: 1px solid var(--obs-border);
   border-radius: 8px; line-height: 1.85; font-size: 13px;
 }
@@ -218,11 +225,11 @@ button:not(.clickable-icon) {
 </head>
 <body>
 
-<h1>样式面板 · 配色轮播 + 分割线（v0.17.1 实机样式）</h1>
+<h1>样式面板 · 「线条」「效果」也改分割线（v0.17.2 实机样式）</h1>
 <p class="sub">
-  ②③ 两列的配色区共用同一份 CSS（逐字抄自已落地的 <code>styles.css</code>），
-  所以两列之间<b>只差一件事</b>：② 是「填充」折叠标题栏（你截图里的现状），③ 是它换成的那条分割线。<br>
-  两列都能点箭头 / 圆点 / 色块翻页；右上角可切亮暗主题 —— 色块配色是固定 hex（跟参考图一致），箭头 / 圆点 / 按钮的底色与描边全部走主题变量。
+  两列的配色轮播、三条分割线、行距、控件外观<b>共用同一份 CSS</b>（逐字抄自已落地的 <code>styles.css</code>），
+  所以两列之间<b>只差一件事</b>：② 的「线条」「效果」是标题栏（你截图里的现状），③ 换成了分割线。<br>
+  两列都能点箭头 / 圆点 / 色块翻页；右上角可切亮暗主题 —— 色块配色是固定 hex（跟参考图一致），其余全部走主题变量。
 </p>
 
 <div class="toolbar">
@@ -231,69 +238,9 @@ button:not(.clickable-icon) {
 
 <div class="boards">
 
-  <!-- ① 更早那版 -->
-  <div>
-    <div class="cap">① v0.16.8 <span class="tag">· 已弃用</span> · <b>3×4 对角双色块</b></div>
-    <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
-      <div class="old-grid" id="oldGrid"></div>
-      <div class="drawio-fmt-section open">
-        <div class="drawio-fmt-section-header"><span>填充</span><span class="drawio-fmt-section-arrow">▸</span></div>
-        <div class="drawio-fmt-section-body">
-          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
-            <div class="chip" style="background:#ffffff"></div></div>
-        </div>
-      </div>
-      <div class="drawio-fmt-section">
-        <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
-        <div class="drawio-fmt-section-body">
-          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
-            <div class="chip" style="background:#000000"></div></div>
-        </div>
-      </div>
-    </div></div>
-  </div>
-
   <!-- ② 现状 -->
-  <div class="col-v170">
-    <div class="cap">② v0.17.0 <span class="tag">· 现状（你的截图）</span> · <b>轮播 + 「填充」标题栏</b></div>
-    <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
-      <div class="drawio-fmt-palette" data-palette>
-        <div class="drawio-fmt-stylepager">
-          <button class="drawio-fmt-pager-btn clickable-icon" data-prev title="上一组配色" aria-label="上一组配色">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
-          </button>
-          <div class="drawio-fmt-style-grid" data-grid></div>
-          <button class="drawio-fmt-pager-btn clickable-icon" data-next title="下一组配色" aria-label="下一组配色">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
-          </button>
-        </div>
-        <div class="drawio-fmt-style-dots" data-dots></div>
-      </div>
-      <div class="drawio-fmt-section open">
-        <div class="drawio-fmt-section-header"><span>填充</span><span class="drawio-fmt-section-arrow">▸</span></div>
-        <div class="drawio-fmt-section-body">
-          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
-            <div class="chip" data-fill-chip style="background:#ffffff"></div></div>
-          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox">渐变</label>
-            <div class="mini-select"><span>向下</span><span class="car">▾</span></div>
-            <div class="chip" data-grad-chip style="background:#000000"></div></div>
-        </div>
-      </div>
-      <div class="drawio-fmt-section">
-        <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
-        <div class="drawio-fmt-section-body">
-          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
-            <div class="chip" data-stroke-chip style="background:#000000"></div></div>
-        </div>
-      </div>
-    </div></div>
-  </div>
-
-  <!-- ③ 本次 -->
   <div>
-    <div class="cap">③ v0.17.1 <span class="tag">· 本次改动</span> · <b>轮播 + 分割线</b></div>
+    <div class="cap">② v0.17.1 <span class="tag">· 现状（你的截图）</span> · <b>「线条」「效果」是折叠标题栏</b></div>
     <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
       <div class="drawio-fmt-palette" data-palette>
         <div class="drawio-fmt-stylepager">
@@ -309,6 +256,7 @@ button:not(.clickable-icon) {
         </div>
         <div class="drawio-fmt-style-dots" data-dots></div>
       </div>
+
       <div class="drawio-fmt-flat">
         <div class="drawio-fmt-divider"></div>
         <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
@@ -317,11 +265,83 @@ button:not(.clickable-icon) {
           <div class="mini-select"><span>向下</span><span class="car">▾</span></div>
           <div class="chip" data-grad-chip style="background:#000000"></div></div>
       </div>
-      <div class="drawio-fmt-section">
+
+      <div class="drawio-fmt-section open">
         <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
         <div class="drawio-fmt-section-body">
           <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
             <div class="chip" data-stroke-chip style="background:#000000"></div></div>
+          <div class="drawio-fmt-row">
+            <div class="line-box"><svg viewBox="0 0 120 20" preserveAspectRatio="none"><line x1="0" y1="10" x2="120" y2="10" stroke="currentColor" stroke-width="2"/></svg></div>
+            <div class="num"><span class="v">1</span><span class="u">pt</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawio-fmt-row"><span class="drawio-fmt-label">不透明度</span>
+        <div class="num"><span class="v">100</span><span class="u">%</span></div></div>
+
+      <div class="drawio-fmt-section open">
+        <div class="drawio-fmt-section-header"><span>效果</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-effects-grid">
+            <label class="chk"><input class="cbox" type="checkbox">圆角</label>
+            <label class="chk"><input class="cbox" type="checkbox">草图</label>
+            <label class="chk"><input class="cbox" type="checkbox">玻璃</label>
+            <label class="chk"><input class="cbox" type="checkbox">阴影</label>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ③ 本次 -->
+  <div>
+    <div class="cap">③ v0.17.2 <span class="tag">· 本次改动</span> · <b>三组都是分割线</b></div>
+    <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
+      <div class="drawio-fmt-palette" data-palette>
+        <div class="drawio-fmt-stylepager">
+          <button class="drawio-fmt-pager-btn clickable-icon" data-prev title="上一组配色" aria-label="上一组配色">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+          </button>
+          <div class="drawio-fmt-style-grid" data-grid></div>
+          <button class="drawio-fmt-pager-btn clickable-icon" data-next title="下一组配色" aria-label="下一组配色">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        <div class="drawio-fmt-style-dots" data-dots></div>
+      </div>
+
+      <div class="drawio-fmt-flat">
+        <div class="drawio-fmt-divider"></div>
+        <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
+          <div class="chip" data-fill-chip style="background:#ffffff"></div></div>
+        <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox">渐变</label>
+          <div class="mini-select"><span>向下</span><span class="car">▾</span></div>
+          <div class="chip" data-grad-chip style="background:#000000"></div></div>
+      </div>
+
+      <div class="drawio-fmt-flat">
+        <div class="drawio-fmt-divider"></div>
+        <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
+          <div class="chip" data-stroke-chip style="background:#000000"></div></div>
+        <div class="drawio-fmt-row">
+          <div class="line-box"><svg viewBox="0 0 120 20" preserveAspectRatio="none"><line x1="0" y1="10" x2="120" y2="10" stroke="currentColor" stroke-width="2"/></svg></div>
+          <div class="num"><span class="v">1</span><span class="u">pt</span></div>
+        </div>
+        <div class="drawio-fmt-row"><span class="drawio-fmt-label">不透明度</span>
+          <div class="num"><span class="v">100</span><span class="u">%</span></div></div>
+      </div>
+
+      <div class="drawio-fmt-flat">
+        <div class="drawio-fmt-divider"></div>
+        <div class="drawio-fmt-effects-grid">
+          <label class="chk"><input class="cbox" type="checkbox">圆角</label>
+          <label class="chk"><input class="cbox" type="checkbox">草图</label>
+          <label class="chk"><input class="cbox" type="checkbox">玻璃</label>
+          <label class="chk"><input class="cbox" type="checkbox">阴影</label>
         </div>
       </div>
     </div></div>
@@ -330,34 +350,31 @@ button:not(.clickable-icon) {
 </div>
 
 <div class="notes">
-  <h2>本次改动（v0.17.0 → v0.17.1）</h2>
+  <h2>本次改动（v0.17.1 → v0.17.2）</h2>
   <ul>
-    <li>「填充」那一格原本是<b>可折叠标题栏</b>（左标题 + 右侧 ▸），现在换成<b>一条 1px 分割线</b>，
-      下方的填充 / 渐变两行直接排开 —— 对齐参考图二里 draw.io 样式面板的分隔方式。</li>
-    <li>标题栏没了不影响功能：它本来就默认展开（<code>open</code>），内容一直可见；
-      「填充」这两个字仍在下面那一行的勾选框标签上，没有丢文案。</li>
-    <li>间距按参考图逐像素量过：<b>圆点 → 分割线 11px</b>（<code>.drawio-fmt-palette</code> 的下边距 14→11px）、
-      <b>分割线 → 首行 10px</b>。分割线自身仍复用 <code>.drawio-fmt-divider</code>，
-      只是用 <code>.drawio-fmt-flat &gt; .drawio-fmt-divider</code> 覆盖掉它默认的 12px 上下边距
-      （文本 Tab 里那条分割线保持原样）。</li>
-    <li>线条、效果两个分区<b>仍是原来的折叠标题栏</b>，只有填充组改成扁平结构。</li>
+    <li>「线条」「效果」那一格原本是<b>可折叠标题栏</b>（左标题 + 右侧 ▸ + 一条 border-bottom），
+      现在和「填充」一样换成<b>一条 1px 分割线</b>，内容直接排开。</li>
+    <li>标题栏没了不影响功能：两个分组本来就默认展开（<code>open</code>），内容一直可见。
+      「线条」二字仍在下面那行的勾选框标签上；<b>「效果」这两个字会一起消失</b>（它只出现在标题栏里，组内 4 个勾选框没有同名字样）——
+      draw.io 原版这一组本来也不带标题，如果你希望留住「效果」二字，说一声我把它挂到某个勾选框或加个小标签。</li>
+    <li><b>不透明度那一行移进了线条组</b>。它原来挂在分组之外（所以现在你能看到它上方那条线就是标题栏分区的 border-bottom）。
+      改扁平后若还留在组外，它会因为 <code>.drawio-fmt-row:last-child { margin-bottom: 0 }</code> 紧贴上面的线型控件、一点缝都没有。</li>
+    <li>三条分割线间距完全一致：<b>上 11px / 下 10px</b>。首组（紧接配色轮播那条）上方不叠加 ——
+      否则 <code>.drawio-fmt-palette</code> 的 <code>margin-bottom: 11px</code> 会和新加的 <code>margin-top: 11px</code> 叠成 22px，
+      第一条线的间距会明显比后两条宽。</li>
+    <li>分割线自身仍复用 <code>.drawio-fmt-divider</code>，只覆盖边距；
+      <b>文本 / 排列面板里那条分割线保持 12px 原样</b>（用 <code>.drawio-fmt-flat &gt; .drawio-fmt-divider</code> 限定作用域）。</li>
   </ul>
   <h2 style="margin-top:14px">装进 vault 后建议顺手验一下</h2>
   <ul>
-    <li>配色区与下面第一行之间应该是<b>一条淡灰细线</b>，且线的上下间距看着对称（不要出现半截线、双线、或线贴着色块）。</li>
-    <li>色块应是 3:2 的方块（<code>aspect-ratio: 1.5</code> 作用在 <code>&lt;button&gt;</code> 上）；箭头 / 圆点 / 色块都应是透明底、无灰块、无内描边。</li>
-    <li>翻到第 6 页再点右箭头应回到第 1 页（循环）；Tab 能依次落到 箭头 → 色块 → 圆点，聚焦有强调色环。</li>
-    <li>第 4 页第 2 格是棋盘格 = 无填充；第 5 页后 7 格是竖向渐变，点它会同时写 填充色 + 渐变色（方向向下）。</li>
+    <li>配色区下面应看到 <b>3 条淡灰细线</b>，彼此的上下间距看起来一样宽（不要第一条明显更宽、也不要两条线挨在一起成双线）。</li>
+    <li>「线条」勾选框、「不透明度」两行之间不要贴死；「不透明度」下面是最后一条线，线下面是 4 个效果勾选框。</li>
+    <li>色块应是 3:2 的方块；箭头 / 圆点 / 色块都应是透明底、无灰块、无内描边；三组里的勾选框能正常切换。</li>
+    <li>切到「文本」「排列」面板，那里的分区标题栏（字体 / 段落 / 对齐…）应<b>保持原样可折叠</b>，分割线仍是较宽的 12px 间距。</li>
   </ul>
 </div>
 
 <script>
-var OLD = [
-  ["#ffffff","#333333"],["#dbeafe","#167dff"],["#dcfce7","#16a34a"],["#fef3c7","#d97706"],
-  ["#fee2e2","#dc2626"],["#f3e8ff","#7c3aed"],["#fde68a","#b45309"],["#bfdbfe","#1d4ed8"],
-  ["#333333","#000000"],["#167dff","#0f5fd6"],["#16a34a","#15803d"],["#dc2626","#991b1b"]
-];
-
 /* 与 src/FormatPanel.ts 的 STYLE_PRESET_PAGES 完全一致 */
 var PAGES = [
   [{fill:"#ffffff",stroke:"#000000"},{fill:"#f5f5f5",stroke:"#666666"},{fill:"#dae8fc",stroke:"#6c8ebf"},{fill:"#d5e8d4",stroke:"#82b366"},
@@ -374,7 +391,7 @@ var PAGES = [
    {fill:"#cce5ff",stroke:"#36393d"},{fill:"#ffff88",stroke:"#36393d"},{fill:"#cdeb8b",stroke:"#36393d"},{fill:"#ffcccc",stroke:"#36393d"}]
 ];
 
-/* 页签行（三列共用） */
+/* 页签行（两列共用） */
 Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function (host) {
   ["样式", "文本", "排列"].forEach(function (label, i) {
     var b = document.createElement("button");
@@ -383,17 +400,6 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function 
     host.appendChild(b);
   });
 });
-
-/* ① 更早那版：对角双色块 */
-(function () {
-  var oldGrid = document.getElementById("oldGrid");
-  OLD.forEach(function (p) {
-    var d = document.createElement("div");
-    d.className = "sw";
-    d.style.background = "linear-gradient(135deg, " + p[0] + " 0 50%, " + p[1] + " 50% 100%)";
-    oldGrid.appendChild(d);
-  });
-})();
 
 /* ②③ 同一套轮播组件：各自独立翻页，互不干扰 */
 function mountPalette(root) {
