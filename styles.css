@@ -1298,27 +1298,65 @@ body.drawio-palette-resizing {
   border-top: 1px solid var(--background-modifier-border);
 }
 
-/* 左侧 ⋮ 菜单按钮 */
-.drawio-pagebar-menu,
-.drawio-pagebar-add {
-  width: 30px;
+/* 左侧 ⋮ 菜单按钮 + 右侧 + 按钮：Obsidian 原生图标按钮风格（默认透明、无边框、无阴影）
+   ⚠️ 选择器必须带 `.drawio-pagebar` 前缀（特异性 0,2,0）。原因：这三个是 <button>，
+   Obsidian 自带的 app.css 里有（已在 obsidian-1.13.7.asar 中查证原文）：
+       button:not(.clickable-icon) {
+         color: var(--text-color);
+         background-color: var(--interactive-normal);
+         box-shadow: var(--input-shadow);
+       }
+   特异性 (0,1,1) > 单个类名的 (0,1,0)，会把我们的「透明底」整条盖掉。被盖住的观感与截图
+   逐像素采样完全吻合：底色 = --interactive-normal（Catppuccin 的 #ccd0da）、图标 = --text-color
+   （#4c4f69）、外加 --input-shadow 的 1px 内描边 —— 就是那个「灰色实心方块」。
+   所以这里做三件事：① 选择器加前缀提权；② PageBar.ts 给按钮挂 `clickable-icon` 让那条
+   `button:not(.clickable-icon)` 直接不匹配；③ 显式写死背景/边框/阴影，不依赖主题变量兜底。 */
+.drawio-pagebar .drawio-pagebar-menu,
+.drawio-pagebar .drawio-pagebar-add {
+  width: 26px;
+  height: 26px;
+  /* min-* 也归零：主题按钮可能带 min-width/min-height，会把 26px 顶大 */
+  min-width: 0;
+  min-height: 0;
   flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
+  align-self: center;
+  margin: 0 6px;
   padding: 0;
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  /* 与 Obsidian 侧边栏 ribbon 图标同色（--icon-color），旧版无此变量时退回 --text-muted */
+  color: var(--icon-color, var(--text-muted));
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0;
-  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-pagebar-menu:hover,
-.drawio-pagebar-add:hover {
+/* 图标尺寸写死在 CSS：避免主题的 .clickable-icon svg 规则改动图标大小 */
+.drawio-pagebar .drawio-pagebar-menu svg,
+.drawio-pagebar .drawio-pagebar-add svg {
+  width: 16px;
+  height: 16px;
+}
+
+.drawio-pagebar .drawio-pagebar-menu:hover,
+.drawio-pagebar .drawio-pagebar-add:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
+}
+
+.drawio-pagebar .drawio-pagebar-menu:active,
+.drawio-pagebar .drawio-pagebar-add:active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 /* 页签条（横向滚动，滚动条隐藏） */
@@ -1342,20 +1380,22 @@ body.drawio-palette-resizing {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 100%;
-  padding: 0 8px 0 12px;
+  gap: 4px;
+  align-self: center;
+  height: 26px;
+  margin: 0 2px;
+  padding: 0 6px 0 10px;
   max-width: 180px;
-  border: none;
-  border-right: 1px solid var(--background-modifier-border);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   cursor: pointer;
   user-select: none;
   touch-action: none;
-  border-radius: 0;
+  border-radius: var(--radius-s, 4px);
   box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .drawio-pagebar-tab:hover {
@@ -1366,6 +1406,7 @@ body.drawio-palette-resizing {
 /* 活动页：底色与画布一致，看起来和画布连成一体 */
 .drawio-pagebar-tab.is-active {
   background: var(--background-primary);
+  border-color: transparent;
   color: var(--text-normal);
   font-weight: 500;
 }
@@ -1373,7 +1414,8 @@ body.drawio-palette-resizing {
 .drawio-pagebar-tab.is-dragging {
   opacity: 0.65;
   background: var(--background-primary);
-  border-radius: 5px;
+  border-radius: var(--radius-s, 4px);
+  border: 1px solid var(--background-modifier-border-hover);
   z-index: 5;
 }
 
@@ -1383,26 +1425,44 @@ body.drawio-palette-resizing {
   text-overflow: ellipsis;
 }
 
-/* 活动页上的 ^ 菜单按钮 */
-.drawio-pagebar-caret {
+/* 活动页上的 ^ 菜单按钮：同上一组，Obsidian 原生小图标按钮（选择器同样要带前缀提权） */
+.drawio-pagebar .drawio-pagebar-caret {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-xs, 3px);
   background: transparent;
-  color: var(--text-muted);
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--icon-color, var(--text-muted));
+  font: inherit;
+  line-height: 1;
   cursor: pointer;
+  text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.drawio-pagebar-caret:hover {
+.drawio-pagebar .drawio-pagebar-caret svg {
+  width: 12px;
+  height: 12px;
+}
+
+.drawio-pagebar .drawio-pagebar-caret:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
+}
+
+.drawio-pagebar .drawio-pagebar-caret:active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 /* 行内重命名输入框 */

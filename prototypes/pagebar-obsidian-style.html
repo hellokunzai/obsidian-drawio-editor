@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>页面栏按钮 Obsidian 风格对照</title>
+  <style>
+    /* 取色来自用户主题 Catppuccin（Latte / Mocha），与截图逐像素采样一致 */
+    :root {
+      --background-primary: #eff1f5;
+      --background-secondary: #e6e9ef;
+      --background-modifier-hover: #ccd0da;
+      --background-modifier-border: #ccd0da;
+      --background-modifier-border-hover: #bcc0cc;
+      --interactive-normal: #ccd0da;
+      --interactive-accent: #167dff;
+      --text-on-accent: #ffffff;
+      --text-normal: #4c4f69;
+      --text-muted: #8c8fa1;
+      --icon-color: #6c6f85;
+      --input-ring: #b3b7bf;
+      --font-ui-small: 13px;
+      --radius-xs: 3px;
+      --radius-s: 4px;
+    }
+
+    .theme-dark {
+      --background-primary: #1e1e2e;
+      --background-secondary: #181825;
+      --background-modifier-hover: #313244;
+      --background-modifier-border: #313244;
+      --background-modifier-border-hover: #45475a;
+      --interactive-normal: #313244;
+      --interactive-accent: #167dff;
+      --text-normal: #cdd6f4;
+      --text-muted: #7f849c;
+      --icon-color: #7f849c;
+      --input-ring: #585b70;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 40px 60px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--background-primary);
+      color: var(--text-normal);
+    }
+
+    .demo-block { margin-bottom: 28px; }
+    .demo-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+    .demo-note { font-size: 12px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.7; }
+    code { font-size: 12px; padding: 1px 4px; border-radius: 3px; background: var(--background-secondary); }
+
+    .theme-toggle {
+      margin-bottom: 24px;
+      padding: 6px 12px;
+      border: 1px solid var(--background-modifier-border-hover);
+      border-radius: var(--radius-s);
+      background: var(--interactive-normal);
+      color: var(--text-normal);
+      cursor: pointer;
+    }
+
+    .demo-canvas {
+      height: 90px;
+      background: var(--background-primary);
+      border: 1px solid var(--background-modifier-border);
+      border-bottom: none;
+    }
+
+    /* ============================================================
+       底部页面栏（对齐 draw.io 的 page bar）—— 修复后
+       ⚠️ 图标按钮选择器必须带 .drawio-pagebar 前缀（特异性 0,2,0），
+       才能压过主题自带的 `button:not(.clickable-icon)`（0,1,1）。
+       ============================================================ */
+    .drawio-pagebar {
+      --drawio-pagebar-h: 34px;
+      height: var(--drawio-pagebar-h);
+      display: flex;
+      align-items: stretch;
+      background: var(--background-secondary);
+      border-top: 1px solid var(--background-modifier-border);
+    }
+
+    .drawio-pagebar .drawio-pagebar-menu,
+    .drawio-pagebar .drawio-pagebar-add {
+      width: 26px; height: 26px;
+      min-width: 0; min-height: 0;
+      flex-shrink: 0;
+      align-self: center;
+      margin: 0 6px;
+      padding: 0;
+      border: none;
+      border-radius: var(--radius-s);
+      background: transparent;
+      box-shadow: none;
+      appearance: none; -webkit-appearance: none;
+      color: var(--icon-color);
+      font: inherit;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background-color .15s ease, color .15s ease;
+    }
+
+    .drawio-pagebar .drawio-pagebar-menu svg,
+    .drawio-pagebar .drawio-pagebar-add svg { width: 16px; height: 16px; }
+
+    .drawio-pagebar .drawio-pagebar-menu:hover,
+    .drawio-pagebar .drawio-pagebar-add:hover {
+      background: var(--background-modifier-hover);
+      color: var(--text-normal);
+    }
+
+    .drawio-pagebar .drawio-pagebar-menu:active,
+    .drawio-pagebar .drawio-pagebar-add:active {
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+    }
+
+    .drawio-pagebar-tabs {
+      position: relative;
+      display: flex; align-items: stretch;
+      flex: 0 1 auto; min-width: 0;
+      overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    }
+
+    .drawio-pagebar-tab {
+      flex: 0 0 auto;
+      display: flex; align-items: center; gap: 4px;
+      align-self: center;
+      height: 26px; margin: 0 2px; padding: 0 6px 0 10px;
+      max-width: 180px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--font-ui-small);
+      cursor: pointer; user-select: none;
+      border-radius: var(--radius-s);
+      box-shadow: none;
+      transition: background-color .15s ease, color .15s ease;
+    }
+
+    .drawio-pagebar-tab:hover {
+      background: var(--background-modifier-hover);
+      color: var(--text-normal);
+    }
+
+    .drawio-pagebar-tab.is-active {
+      background: var(--background-primary);
+      color: var(--text-normal);
+      font-weight: 500;
+    }
+
+    .drawio-pagebar .drawio-pagebar-caret {
+      flex-shrink: 0;
+      width: 16px; height: 16px;
+      min-width: 0; min-height: 0;
+      padding: 0; border: none;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      box-shadow: none;
+      appearance: none; -webkit-appearance: none;
+      color: var(--icon-color);
+      font: inherit; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background-color .15s ease, color .15s ease;
+    }
+
+    .drawio-pagebar .drawio-pagebar-caret svg { width: 12px; height: 12px; }
+
+    .drawio-pagebar .drawio-pagebar-caret:hover {
+      background: var(--background-modifier-hover);
+      color: var(--text-normal);
+    }
+
+    .drawio-pagebar .drawio-pagebar-caret:active {
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+    }
+
+    .drawio-pagebar-blank { flex: 1 1 auto; min-width: 0; }
+
+    /* ============================================================
+       仅用于「修复前」对照：把主题的默认按钮规则搬进来
+       并让按钮退回到旧的单类名选择器，复现灰底实心方块
+       ============================================================ */
+    .drawio-pagebar.is-before .drawio-pagebar-menu,
+    .drawio-pagebar.is-before .drawio-pagebar-add {
+      background: var(--interactive-normal);
+      color: var(--text-normal);
+      box-shadow: inset 0 0 0 1px var(--input-ring);
+      border: none;
+      border-radius: var(--radius-s);
+    }
+    .drawio-pagebar.is-before .drawio-pagebar-caret {
+      background: var(--interactive-normal);
+      color: var(--text-normal);
+      box-shadow: inset 0 0 0 1px var(--input-ring);
+      border: none;
+      border-radius: var(--radius-xs);
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.body.classList.toggle('theme-dark')">切换亮/暗主题</button>
+
+  <div class="demo-block">
+    <div class="demo-title">修复前（你截图里的现状）</div>
+    <div class="demo-canvas"></div>
+    <div class="drawio-pagebar is-before">
+      <button class="drawio-pagebar-menu" title="页面菜单">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      </button>
+      <div class="drawio-pagebar-tabs">
+        <div class="drawio-pagebar-tab is-active">
+          <span class="drawio-pagebar-tab-name">第1页</span>
+          <button class="drawio-pagebar-caret">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+        </div>
+        <div class="drawio-pagebar-tab"><span class="drawio-pagebar-tab-name">第2页</span></div>
+      </div>
+      <button class="drawio-pagebar-add" title="新建页面">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
+      <div class="drawio-pagebar-blank"></div>
+    </div>
+    <p class="demo-note">⋮ / ⌃ / ＋ 三个 <code>&lt;button&gt;</code> 被主题的 <code>button:not(.clickable-icon)</code> 规则画成灰底实心方块；只有页签（<code>&lt;div&gt;</code>）不受影响。</p>
+  </div>
+
+  <div class="demo-block">
+    <div class="demo-title">修复后（Obsidian 原生图标按钮，即图二 ribbon 的风格）</div>
+    <div class="demo-canvas"></div>
+    <div class="drawio-pagebar">
+      <button class="clickable-icon drawio-pagebar-menu" title="页面菜单">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      </button>
+      <div class="drawio-pagebar-tabs">
+        <div class="drawio-pagebar-tab is-active">
+          <span class="drawio-pagebar-tab-name">第1页</span>
+          <button class="clickable-icon drawio-pagebar-caret">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+        </div>
+        <div class="drawio-pagebar-tab"><span class="drawio-pagebar-tab-name">第2页</span></div>
+      </div>
+      <button class="clickable-icon drawio-pagebar-add" title="新建页面">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
+      <div class="drawio-pagebar-blank"></div>
+    </div>
+    <p class="demo-note">
+      默认态：透明底、无边框、无阴影，图标用 <code>--icon-color</code>（与侧边栏 ribbon 同色）。<br>
+      hover：<code>--background-modifier-hover</code> 圆角底 + 图标转 <code>--text-normal</code>；按下：<code>--interactive-accent</code> 底 + 白图标。
+    </p>
+  </div>
+
+  <div class="demo-block">
+    <div class="demo-title">Hover / 按下 状态示意</div>
+    <div class="demo-canvas"></div>
+    <div class="drawio-pagebar">
+      <button class="clickable-icon drawio-pagebar-menu" style="background: var(--background-modifier-hover); color: var(--text-normal);" title="页面菜单">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      </button>
+      <div class="drawio-pagebar-tabs">
+        <div class="drawio-pagebar-tab" style="background: var(--background-modifier-hover); color: var(--text-normal);">
+          <span class="drawio-pagebar-tab-name">第1页</span>
+        </div>
+        <div class="drawio-pagebar-tab is-active">
+          <span class="drawio-pagebar-tab-name">第2页</span>
+          <button class="clickable-icon drawio-pagebar-caret" style="background: var(--background-modifier-hover); color: var(--text-normal);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+        </div>
+        <div class="drawio-pagebar-tab"><span class="drawio-pagebar-tab-name">第3页</span></div>
+      </div>
+      <button class="clickable-icon drawio-pagebar-add" style="background: var(--interactive-accent); color: var(--text-on-accent);" title="新建页面">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
+      <div class="drawio-pagebar-blank"></div>
+    </div>
+  </div>
+</body>
+</html>

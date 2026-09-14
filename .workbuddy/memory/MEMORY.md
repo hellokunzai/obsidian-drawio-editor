@@ -1,6 +1,6 @@
 # 项目记忆
 
-> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.2。
+> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.16.5。
 > 跨会话成立的事实与踩坑结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
 
 ## 技术栈与工作流
@@ -20,6 +20,18 @@
 - 上色用具体 hex / rgba（draw.io 蓝 `#167dff` + `rgba(22,125,255,0.12)`），不要依赖 `var(--interactive-accent)` / `color-mix`（Electron 作用域可能失效）。
 - 覆盖 mxClient 默认类（如 `.mxRubberband`）务必补 `position: absolute`、`pointer-events: none`。
 - 覆盖 Obsidian 自带规则注意特异性，别指望加载顺序。
+- **给插件自绘 `<button>` 定样式时，单个类名 (0,1,0) 一定不够。** Obsidian app.css 里有
+  `button:not(.clickable-icon) { color: var(--text-color); background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`
+  ＝ (0,1,1)，会整条盖掉你的「透明底」。表现就是按钮变成「主题灰底 + 1px 内描边实心方块」。
+  双保险：① 选择器加父级前缀（`.drawio-pagebar .drawio-pagebar-menu`，(0,2,0)）；② 给按钮挂 Obsidian 自己的 `clickable-icon` 类，让那条规则直接不匹配（顺带白拿 ribbon 的 `--icon-color` + `--icon-opacity` 观感）。
+  `<div>` 造的「按钮」没有这个问题，只有真 `<button>` 会。
+- 排查手法：`%APPDATA%\obsidian\obsidian-<版本>.asar` 可以直接当 latin1 字符串读，
+  正则 `/([^{}\n]{0,200}button[^{}\n]{0,120})\{([^{}]{0,500}interactive-normal[^{}]{0,300})\}/g` 能捞出原文，
+  比猜主题快得多（asar 头部就是 JSON，app.css 明文在里面）。
+- 主题取色可从截图反推：本项目用户用 **Catppuccin（Latte/Mocha）** —— base `#eff1f5` / mantle `#e6e9ef` /
+  surface0 `#ccd0da` / text `#4c4f69` / overlay 系 `#6c6f85`。截图里出现这几个值基本就能确定主题。
+- 无 PIL 时看截图：纯 `python -c` + `zlib` 手写 PNG 解码（filter type 0~4 逐行还原），
+  做「按色距离分类的 ASCII 图」+ 逐像素扫描，足够判断按钮有没有底色/描边、边界落在哪个 x。
 
 ## 视图铺满叶子
 - Obsidian `.workspace-leaf-content .view-content` 默认有 padding（尤其下 32px），插件容器 `height:100%` 只拿到内容盒高度 → 四周露白。

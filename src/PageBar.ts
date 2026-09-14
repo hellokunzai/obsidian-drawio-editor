@@ -82,7 +82,9 @@ export class PageBar {
     this.rootEl = parent.createDiv({ cls: "drawio-pagebar" });
 
     const menuBtn = this.rootEl.createEl("button", {
-      cls: "drawio-pagebar-menu",
+      // clickable-icon：Obsidian 自己的图标按钮类，能让主题的
+      // `button:not(.clickable-icon)` 规则不匹配，避免被画成「灰底实心按钮」
+      cls: "clickable-icon drawio-pagebar-menu",
       attr: { title: t("page.menuTip") },
     });
     menuBtn.innerHTML = SVG_MENU;
@@ -97,7 +99,7 @@ export class PageBar {
     this.dropEl = this.tabsEl.createDiv({ cls: "drawio-pagebar-drop" });
 
     const addBtn = this.rootEl.createEl("button", {
-      cls: "drawio-pagebar-add",
+      cls: "clickable-icon drawio-pagebar-add",
       attr: { title: t("page.new") },
     });
     addBtn.innerHTML = SVG_PLUS;
@@ -139,7 +141,7 @@ export class PageBar {
 
       if (index === active) {
         const caret = tab.createEl("button", {
-          cls: "drawio-pagebar-caret",
+          cls: "clickable-icon drawio-pagebar-caret",
           attr: { title: t("page.menuTip") },
         });
         caret.innerHTML = SVG_CARET;
