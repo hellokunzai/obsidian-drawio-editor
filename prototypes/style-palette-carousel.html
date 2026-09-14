@@ -2,11 +2,15 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>样式面板 · 配色轮播 — 实机样式预览</title>
+<title>样式面板 · 配色轮播 + 分割线 — 实机样式预览</title>
 <style>
 /* ============================================================
-   左：改版前（3×4 对角双色块）   右：改版后（4×2 单色块 + 左右翻页）
-   右侧的类名与 CSS 与 styles.css 里已落地的那份**逐字一致**，所以看到的就是实机效果。
+   三列对照，只想让读者看出「一件事」的差别：
+     ① v0.16.8  3×4 对角双色块 + 「填充」折叠标题栏
+     ② v0.17.0  4×2 轮播         + 「填充」折叠标题栏   ← 你截图里的现状
+     ③ v0.17.1  4×2 轮播         + 一条分割线           ← 本次改动
+   ② 与 ③ 的轮播、色块、圆点、箭头全部共用同一份 CSS（逐字抄自 styles.css），
+   所以两列之间唯一的差别就是「填充」标题栏 vs 分割线（外加 palette 的下边距 14→11px）。
    右上角可切亮/暗主题（默认按你的 Catppuccin Latte）。
    ============================================================ */
 
@@ -42,7 +46,7 @@ body {
   font-size: 14px; transition: background .2s, color .2s;
 }
 h1 { font-size: 19px; margin: 0 0 6px; font-weight: 600; }
-.sub { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; max-width: 900px; }
+.sub { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; max-width: 1000px; }
 
 .toolbar { position: fixed; top: 18px; right: 22px; }
 .toolbar button {
@@ -53,9 +57,10 @@ h1 { font-size: 19px; margin: 0 0 6px; font-weight: 600; }
 }
 .toolbar button.on { color: var(--accent); border-color: var(--accent); }
 
-.boards { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+.boards { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
 .cap { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); letter-spacing: .3px; }
 .cap b { color: var(--text); }
+.cap .tag { font-weight: 500; opacity: .75; }
 
 /* 模拟 Obsidian 右侧边栏 */
 .sidebar {
@@ -88,7 +93,7 @@ button:not(.clickable-icon) {
 }
 .fmt-body { padding: 12px; min-height: 250px; }
 
-/* ---- 改版前：3×4 对角双色块 ---- */
+/* ---- ① 更早那版：3×4 对角双色块 ---- */
 .old-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
 .old-grid .sw {
   aspect-ratio: 1.6; border: 1px solid var(--obs-border); border-radius: 4px;
@@ -97,9 +102,9 @@ button:not(.clickable-icon) {
 .old-grid .sw:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
 
 /* ============================================================
-   改版后：以下与 styles.css 里的规则逐字一致
+   以下与 styles.css 逐字一致（v0.17.1 落地版）
    ============================================================ */
-.drawio-fmt-palette { margin-bottom: 14px; }
+.drawio-fmt-palette { margin-bottom: 11px; }
 
 .drawio-fmt-stylepager { display: flex; align-items: center; gap: 6px; }
 
@@ -163,17 +168,42 @@ button:not(.clickable-icon) {
 .drawio-fmt-style-dots .drawio-fmt-style-dot.active {
   background: var(--accent); border-color: var(--accent);
 }
+
+/* ---- 分区（②③ 共用；③ 的填充组不再用它，线条组仍用）---- */
+.drawio-fmt-section { border-bottom: 1px solid var(--obs-border); padding: 8px 0; }
+.drawio-fmt-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); user-select: none;
+}
+.drawio-fmt-section-arrow { font-size: 10px; color: var(--text-muted); transition: transform .15s ease; }
+.drawio-fmt-section.open .drawio-fmt-section-arrow { transform: rotate(90deg); }
+.drawio-fmt-section-body { display: none; padding-top: 10px; }
+.drawio-fmt-section.open .drawio-fmt-section-body { display: block; }
+
+/* ---- 一行控件 ---- */
+.drawio-fmt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.drawio-fmt-row:last-child { margin-bottom: 0; }
+
+/* ---- ③ 的分割线（本次改动）---- */
+.drawio-fmt-divider { height: 1px; background: var(--obs-border); margin: 12px 0; }
+.drawio-fmt-flat > .drawio-fmt-divider { margin: 0 0 10px; }
+
+/* ---- ② 的旧间距：只覆盖 palette 下边距，其余与 ③ 共用 ---- */
+.col-v170 .drawio-fmt-palette { margin-bottom: 14px; }
 /* ================= 以上与 styles.css 一致 ================= */
 
-/* 后续控件（上下文，不参与本次改动） */
-.sec { border-bottom: 1px solid var(--obs-border); padding: 8px 0; }
-.sec-h { display: flex; align-items: center; justify-content: space-between;
-         font-size: 13px; font-weight: 600; color: var(--text); }
-.sec-h .ar { font-size: 10px; color: var(--text-muted); }
-.row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+/* 控件外观（原型简化：真插件里是 .drawio-fmt-color / .drawio-fmt-select，
+   宽度 28×22、无 margin-left:auto 也照抄 —— 填充行里色块紧跟在文字后面） */
 .chk { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.cbox { width: 14px; height: 14px; accent-color: var(--accent); }
-.chip { width: 30px; height: 18px; border-radius: 3px; border: 1px solid var(--obs-border); margin-left: auto; }
+.cbox { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.chip { width: 28px; height: 22px; border-radius: 3px; border: 1px solid var(--obs-border); flex: 0 0 auto; }
+.mini-select {
+  font-size: 12px; color: var(--text); background: var(--card-bg);
+  border: 1px solid var(--obs-border); border-radius: 4px;
+  padding: 3px 8px; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex: 1; min-width: 0;
+}
+.mini-select .car { font-size: 9px; color: var(--text-muted); }
 
 .notes {
   max-width: 1180px; margin: 28px 0 0; padding: 16px 20px;
@@ -188,11 +218,11 @@ button:not(.clickable-icon) {
 </head>
 <body>
 
-<h1>样式面板 · 配色轮播（v0.17.0 实机样式）</h1>
+<h1>样式面板 · 配色轮播 + 分割线（v0.17.1 实机样式）</h1>
 <p class="sub">
-  左边是改版前，右边是已落地到插件里的那份 CSS（类名、选择器、尺寸逐字一致），
-  所以这一屏看到的就是装进 vault 后的效果。右侧可以点箭头 / 圆点翻页、点色块。<br>
-  右上角可切亮暗主题 —— 配色是固定 hex（跟参考图一致），但按钮、箭头、圆点的底色 / 描边全部走主题变量。
+  ②③ 两列的配色区共用同一份 CSS（逐字抄自已落地的 <code>styles.css</code>），
+  所以两列之间<b>只差一件事</b>：② 是「填充」折叠标题栏（你截图里的现状），③ 是它换成的那条分割线。<br>
+  两列都能点箭头 / 圆点 / 色块翻页；右上角可切亮暗主题 —— 色块配色是固定 hex（跟参考图一致），箭头 / 圆点 / 按钮的底色与描边全部走主题变量。
 </p>
 
 <div class="toolbar">
@@ -201,55 +231,123 @@ button:not(.clickable-icon) {
 
 <div class="boards">
 
+  <!-- ① 更早那版 -->
   <div>
-    <div class="cap">改版前 · <b>3×4 对角双色块</b>（12 组，一次性铺开）</div>
+    <div class="cap">① v0.16.8 <span class="tag">· 已弃用</span> · <b>3×4 对角双色块</b></div>
     <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
       <div class="old-grid" id="oldGrid"></div>
-      <div class="sec"><div class="sec-h"><span>填充</span><span class="ar">▸</span></div>
-        <div class="row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
-          <div class="chip" style="background:#ffffff"></div></div></div>
-      <div class="sec"><div class="sec-h"><span>线条</span><span class="ar">▸</span></div>
-        <div class="row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
-          <div class="chip" style="background:#000000"></div></div></div>
+      <div class="drawio-fmt-section open">
+        <div class="drawio-fmt-section-header"><span>填充</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
+            <div class="chip" style="background:#ffffff"></div></div>
+        </div>
+      </div>
+      <div class="drawio-fmt-section">
+        <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
+            <div class="chip" style="background:#000000"></div></div>
+        </div>
+      </div>
     </div></div>
   </div>
 
-  <div>
-    <div class="cap">改版后 · <b>4×2 单色块 + 左右翻页 + 分页圆点</b>（6 页共 48 组）</div>
+  <!-- ② 现状 -->
+  <div class="col-v170">
+    <div class="cap">② v0.17.0 <span class="tag">· 现状（你的截图）</span> · <b>轮播 + 「填充」标题栏</b></div>
     <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
-      <div class="drawio-fmt-palette">
+      <div class="drawio-fmt-palette" data-palette>
         <div class="drawio-fmt-stylepager">
-          <button class="drawio-fmt-pager-btn clickable-icon" id="prevBtn" title="上一组配色" aria-label="上一组配色">
+          <button class="drawio-fmt-pager-btn clickable-icon" data-prev title="上一组配色" aria-label="上一组配色">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
           </button>
-          <div class="drawio-fmt-style-grid" id="grid"></div>
-          <button class="drawio-fmt-pager-btn clickable-icon" id="nextBtn" title="下一组配色" aria-label="下一组配色">
+          <div class="drawio-fmt-style-grid" data-grid></div>
+          <button class="drawio-fmt-pager-btn clickable-icon" data-next title="下一组配色" aria-label="下一组配色">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
-        <div class="drawio-fmt-style-dots" id="dots"></div>
+        <div class="drawio-fmt-style-dots" data-dots></div>
       </div>
-      <div class="sec"><div class="sec-h"><span>填充</span><span class="ar">▸</span></div>
-        <div class="row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
-          <div class="chip" id="fillChip" style="background:#ffffff"></div></div></div>
-      <div class="sec"><div class="sec-h"><span>线条</span><span class="ar">▸</span></div>
-        <div class="row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
-          <div class="chip" id="strokeChip" style="background:#000000"></div></div></div>
+      <div class="drawio-fmt-section open">
+        <div class="drawio-fmt-section-header"><span>填充</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
+            <div class="chip" data-fill-chip style="background:#ffffff"></div></div>
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox">渐变</label>
+            <div class="mini-select"><span>向下</span><span class="car">▾</span></div>
+            <div class="chip" data-grad-chip style="background:#000000"></div></div>
+        </div>
+      </div>
+      <div class="drawio-fmt-section">
+        <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
+            <div class="chip" data-stroke-chip style="background:#000000"></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ③ 本次 -->
+  <div>
+    <div class="cap">③ v0.17.1 <span class="tag">· 本次改动</span> · <b>轮播 + 分割线</b></div>
+    <div class="sidebar"><div class="fmt-tabs" data-tabs></div><div class="fmt-body">
+      <div class="drawio-fmt-palette" data-palette>
+        <div class="drawio-fmt-stylepager">
+          <button class="drawio-fmt-pager-btn clickable-icon" data-prev title="上一组配色" aria-label="上一组配色">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+          </button>
+          <div class="drawio-fmt-style-grid" data-grid></div>
+          <button class="drawio-fmt-pager-btn clickable-icon" data-next title="下一组配色" aria-label="下一组配色">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        <div class="drawio-fmt-style-dots" data-dots></div>
+      </div>
+      <div class="drawio-fmt-flat">
+        <div class="drawio-fmt-divider"></div>
+        <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>填充</label>
+          <div class="chip" data-fill-chip style="background:#ffffff"></div></div>
+        <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox">渐变</label>
+          <div class="mini-select"><span>向下</span><span class="car">▾</span></div>
+          <div class="chip" data-grad-chip style="background:#000000"></div></div>
+      </div>
+      <div class="drawio-fmt-section">
+        <div class="drawio-fmt-section-header"><span>线条</span><span class="drawio-fmt-section-arrow">▸</span></div>
+        <div class="drawio-fmt-section-body">
+          <div class="drawio-fmt-row"><label class="chk"><input class="cbox" type="checkbox" checked>线条</label>
+            <div class="chip" data-stroke-chip style="background:#000000"></div></div>
+        </div>
+      </div>
     </div></div>
   </div>
 
 </div>
 
 <div class="notes">
-  <h2>装进 vault 后建议顺手验一下</h2>
+  <h2>本次改动（v0.17.0 → v0.17.1）</h2>
   <ul>
-    <li>箭头 / 圆点 / 色块都应该是<b>透明底、无灰块、无内描边</b>（三个都是真 <code>&lt;button&gt;</code>，已挂 <code>clickable-icon</code> + 父级前缀双保险）。</li>
-    <li>选一个图形，轮播应给<b>匹配的那一格</b>加强调色外圈；当前页里没有匹配项时才翻到有匹配的那一页（避免 #ffffff/#000000 这种跨 5 页重复的预设把面板乱跳）；完全没匹配则外圈消失。</li>
-    <li>第 4 页第 2 格是<b>棋盘格 = 无填充</b>；第 5 页后 7 格是<b>竖向渐变</b>，点它会同时写 填充色 + 渐变色（方向向下）。</li>
-    <li>翻到第 6 页再点右箭头，应回到第 1 页（循环）。</li>
-    <li>键盘 Tab 能依次落到箭头 → 色块 → 圆点，聚焦时有强调色聚焦环。</li>
+    <li>「填充」那一格原本是<b>可折叠标题栏</b>（左标题 + 右侧 ▸），现在换成<b>一条 1px 分割线</b>，
+      下方的填充 / 渐变两行直接排开 —— 对齐参考图二里 draw.io 样式面板的分隔方式。</li>
+    <li>标题栏没了不影响功能：它本来就默认展开（<code>open</code>），内容一直可见；
+      「填充」这两个字仍在下面那一行的勾选框标签上，没有丢文案。</li>
+    <li>间距按参考图逐像素量过：<b>圆点 → 分割线 11px</b>（<code>.drawio-fmt-palette</code> 的下边距 14→11px）、
+      <b>分割线 → 首行 10px</b>。分割线自身仍复用 <code>.drawio-fmt-divider</code>，
+      只是用 <code>.drawio-fmt-flat &gt; .drawio-fmt-divider</code> 覆盖掉它默认的 12px 上下边距
+      （文本 Tab 里那条分割线保持原样）。</li>
+    <li>线条、效果两个分区<b>仍是原来的折叠标题栏</b>，只有填充组改成扁平结构。</li>
+  </ul>
+  <h2 style="margin-top:14px">装进 vault 后建议顺手验一下</h2>
+  <ul>
+    <li>配色区与下面第一行之间应该是<b>一条淡灰细线</b>，且线的上下间距看着对称（不要出现半截线、双线、或线贴着色块）。</li>
+    <li>色块应是 3:2 的方块（<code>aspect-ratio: 1.5</code> 作用在 <code>&lt;button&gt;</code> 上）；箭头 / 圆点 / 色块都应是透明底、无灰块、无内描边。</li>
+    <li>翻到第 6 页再点右箭头应回到第 1 页（循环）；Tab 能依次落到 箭头 → 色块 → 圆点，聚焦有强调色环。</li>
+    <li>第 4 页第 2 格是棋盘格 = 无填充；第 5 页后 7 格是竖向渐变，点它会同时写 填充色 + 渐变色（方向向下）。</li>
   </ul>
 </div>
 
@@ -276,7 +374,7 @@ var PAGES = [
    {fill:"#cce5ff",stroke:"#36393d"},{fill:"#ffff88",stroke:"#36393d"},{fill:"#cdeb8b",stroke:"#36393d"},{fill:"#ffcccc",stroke:"#36393d"}]
 ];
 
-/* 页签行（两侧共用） */
+/* 页签行（三列共用） */
 Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function (host) {
   ["样式", "文本", "排列"].forEach(function (label, i) {
     var b = document.createElement("button");
@@ -286,69 +384,78 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-tabs]"), function 
   });
 });
 
-/* 改版前 */
-var oldGrid = document.getElementById("oldGrid");
-OLD.forEach(function (p) {
-  var d = document.createElement("div");
-  d.className = "sw";
-  d.style.background = "linear-gradient(135deg, " + p[0] + " 0 50%, " + p[1] + " 50% 100%)";
-  oldGrid.appendChild(d);
-});
+/* ① 更早那版：对角双色块 */
+(function () {
+  var oldGrid = document.getElementById("oldGrid");
+  OLD.forEach(function (p) {
+    var d = document.createElement("div");
+    d.className = "sw";
+    d.style.background = "linear-gradient(135deg, " + p[0] + " 0 50%, " + p[1] + " 50% 100%)";
+    oldGrid.appendChild(d);
+  });
+})();
 
-/* 改版后 */
-var grid = document.getElementById("grid");
-var dotsHost = document.getElementById("dots");
-var fillChip = document.getElementById("fillChip");
-var strokeChip = document.getElementById("strokeChip");
-var page = 0, active = -1;
+/* ②③ 同一套轮播组件：各自独立翻页，互不干扰 */
+function mountPalette(root) {
+  var grid = root.querySelector("[data-grid]");
+  var dotsHost = root.querySelector("[data-dots]");
+  var host = root.parentElement;
+  var fillChip = host.querySelector("[data-fill-chip]");
+  var strokeChip = host.querySelector("[data-stroke-chip]");
+  var gradChip = host.querySelector("[data-grad-chip]");
+  var page = 0, active = -1;
 
-function render() {
-  grid.textContent = "";
-  PAGES[page].forEach(function (s, i) {
-    var index = page * 8 + i;
-    var b = document.createElement("button");
-    b.className = "drawio-fmt-swatch";
-    if (s.noFill) {
-      b.classList.add("is-none");
-    } else {
-      b.style.background = s.gradient
-        ? "linear-gradient(180deg, " + s.fill + " 0%, " + s.gradient + " 100%)"
-        : s.fill;
-    }
-    b.style.borderColor = s.stroke;
-    b.title = (s.noFill ? "无填充" : (s.gradient ? s.fill + " → " + s.gradient : s.fill)) + " · 线条 " + s.stroke;
-    b.setAttribute("aria-label", b.title);
-    if (index === active) b.classList.add("active");
-    b.addEventListener("click", function () {
-      fillChip.style.background = s.noFill ? "#ffffff" : s.fill;
-      strokeChip.style.background = s.stroke;
-      active = index;
-      render();
+  function render() {
+    grid.textContent = "";
+    PAGES[page].forEach(function (s, i) {
+      var index = page * 8 + i;
+      var b = document.createElement("button");
+      b.className = "drawio-fmt-swatch";
+      if (s.noFill) {
+        b.classList.add("is-none");
+      } else {
+        b.style.background = s.gradient
+          ? "linear-gradient(180deg, " + s.fill + " 0%, " + s.gradient + " 100%)"
+          : s.fill;
+      }
+      b.style.borderColor = s.stroke;
+      b.title = (s.noFill ? "无填充" : (s.gradient ? s.fill + " → " + s.gradient : s.fill)) + " · 线条 " + s.stroke;
+      b.setAttribute("aria-label", b.title);
+      if (index === active) b.classList.add("active");
+      b.addEventListener("click", function () {
+        fillChip.style.background = s.noFill ? "transparent" : s.fill;
+        strokeChip.style.background = s.stroke;
+        gradChip.style.background = s.gradient || "transparent";
+        active = index;
+        render();
+      });
+      grid.appendChild(b);
     });
-    grid.appendChild(b);
-  });
-  Array.prototype.forEach.call(dotsHost.children, function (el, i) {
-    el.classList.toggle("active", i === page);
-  });
-}
+    Array.prototype.forEach.call(dotsHost.children, function (el, i) {
+      el.classList.toggle("active", i === page);
+    });
+  }
 
-for (var i = 0; i < PAGES.length; i++) {
-  (function (idx) {
+  PAGES.forEach(function (_, idx) {
     var d = document.createElement("button");
     d.className = "drawio-fmt-style-dot";
     d.title = "第 " + (idx + 1) + " 组配色";
     d.setAttribute("aria-label", d.title);
     d.addEventListener("click", function () { page = idx; render(); });
     dotsHost.appendChild(d);
-  })(i);
+  });
+
+  root.querySelector("[data-prev]").addEventListener("click", function () {
+    page = (page - 1 + PAGES.length) % PAGES.length; render();      /* 循环翻页 */
+  });
+  root.querySelector("[data-next]").addEventListener("click", function () {
+    page = (page + 1) % PAGES.length; render();
+  });
+
+  render();
 }
 
-document.getElementById("prevBtn").addEventListener("click", function () {
-  page = (page - 1 + PAGES.length) % PAGES.length; render();      /* 循环翻页 */
-});
-document.getElementById("nextBtn").addEventListener("click", function () {
-  page = (page + 1) % PAGES.length; render();
-});
+Array.prototype.forEach.call(document.querySelectorAll("[data-palette]"), mountPalette);
 
 /* 主题切换 */
 document.getElementById("themeBtn").addEventListener("click", function () {
@@ -356,8 +463,6 @@ document.getElementById("themeBtn").addEventListener("click", function () {
   this.textContent = dark ? "切换亮色主题" : "切换暗色主题";
   this.classList.toggle("on", dark);
 });
-
-render();
 </script>
 </body>
 </html>

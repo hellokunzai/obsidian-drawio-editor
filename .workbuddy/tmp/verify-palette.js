@@ -183,5 +183,130 @@ const ver = JSON.parse(fs.readFileSync(path.join(ROOT, "versions.json"), "utf8")
 (man.version === pkg.version && ver[man.version] ? ok : bad)(
   `manifest=${man.version} package=${pkg.version} versions[${man.version}]=${ver[man.version]}`);
 
+// ---- 6. 「填充」标题栏 → 分割线（v0.17.1）----
+console.log("分割线改造");
+if (/this\.section\(\s*t\("format\.fill"\)/.test(src)) bad("填充组仍在用可折叠标题栏 this.section(...)");
+else ok("填充组已不再渲染标题栏");
+if (!/this\.flatSection\(\(body\) => \{/.test(src)) bad("找不到 this.flatSection((body) => { 调用点");
+else ok("填充组改用 this.flatSection(...)");
+const flatDefs = (src.match(/private flatSection\(/g) || []).length;
+(flatDefs === 1 ? ok : bad)(`flatSection 定义 ${flatDefs} 处（应为 1）`);
+// 扁平分组内部：分割线是第一个子元素，且首行不是 margin-bottom:0（:last-child 才是）
+const flatImpl = src.match(/private flatSection\([\s\S]*?\n  \}/);
+if (flatImpl && /h\("div", "drawio-fmt-flat"\)/.test(flatImpl[0]) &&
+    /appendChild\(h\("div", "drawio-fmt-divider"\)\)/.test(flatImpl[0]))
+  ok("flatSection = .drawio-fmt-flat > .drawio-fmt-divider，内容直接追加（:last-child 语义与旧 section 一致）");
+else bad("flatSection 结构不符预期");
+// 「填充」文案本身必须还在（它是下面那一行的勾选框标签，不能连文案一起删掉）
+const fillLabelUses = (src.match(/t\("format\.fill"\)/g) || []).length;
+(fillLabelUses === 1 ? ok : bad)(`t("format.fill") 剩 ${fillLabelUses} 处（应为 1：勾选框标签）`);
+for (const keep of ["format.gradient", "format.stroke"]) {
+  if (!src.includes(`t("${keep}")`)) bad(`文案 key 丢失: ${keep}`);
+}
+ok("渐变 / 线条文案仍在");
+if (src.includes("drawio-fmt-group\"") || /"drawio-fmt-group"/.test(css))
+  bad("残留已弃用的 .drawio-fmt-group 命名（与 .drawio-fmt-group-title/-body 语义撞车）");
+else ok("无 .drawio-fmt-group 命名残留");
+
+// 特异性：扁平分割线的间距规则必须真的压过 .drawio-fmt-divider 的基础规则
+const spec = (sel) => {
+  const s = { a: 0, b: 0, c: 0 };
+  sel.split(",").forEach((one) => {
+    const t = one.trim();
+    s.a += (t.match(/#[\w-]+/g) || []).length;
+    s.b += (t.match(/\.[\w-]+/g) || []).length + (t.match(/\[[^\]]+\]/g) || []).length +
+           (t.match(/:(?!:)[\w-]+(\([^)]*\))?/g) || []).length;
+    s.c += (t.match(/(^|[\s>+~])([a-z][\w-]*)/g) || []).length;
+  });
+  return s.a * 10000 + s.b * 100 + s.c;
+};
+const flatRule = css.match(/([^\n{}]*drawio-fmt-flat[^\n{}]*drawio-fmt-divider[^\n{}]*)\{([^{}]*)\}/);
+if (!flatRule) bad("CSS 缺少 .drawio-fmt-flat > .drawio-fmt-divider 规则");
+else {
+  if (/margin:\s*0 0 10px/.test(flatRule[2])) ok("分割线上边 0 / 下边 10px");
+  else bad("分割线间距不是 margin: 0 0 10px —— " + flatRule[2].trim());
+  const base = css.match(/([^\n{}]*\.drawio-fmt-divider[^\n{}]*)\{([^{}]*margin:[^{}]*)\}/);
+  if (!base) bad("找不到基础 .drawio-fmt-divider 规则");
+  else {
+    const w = spec(flatRule[1]), l = spec(base[1]);
+    (w > l ? ok : bad)(`特异性 ${w} > ${l}（扁平分割线生效，基础 12px 间距被覆盖）`);
+  }
+}
+const pal = css.match(/\.drawio-fmt-palette\s*\{([^{}]*)\}/);
+if (pal && /margin-bottom:\s*11px/.test(pal[1])) ok("配色轮播 margin-bottom: 11px（对齐参考图 dots→分割线 11px）");
+else bad("配色轮播 margin-bottom 不是 11px —— " + (pal ? pal[1].trim() : "无规则"));
+// 旧规则不该被顺手改掉：基础 .drawio-fmt-divider 仍是 12px
+if (/\.drawio-fmt-divider\s*\{[^{}]*margin:\s*12px 0/.test(css)) ok("基础 .drawio-fmt-divider 仍是 12px（文本面板不受影响）");
+else bad("基础 .drawio-fmt-divider 的 12px 间距被改动");
+if (un.includes("drawio-fmt-flat") && un.includes("drawio-fmt-divider"))
+  ok("产物含 .drawio-fmt-flat / .drawio-fmt-divider");
+else bad("产物缺少 drawio-fmt-flat / drawio-fmt-divider");
+if (un.includes("drawio-fmt-section-header")) ok("其它分区（线条/效果）仍保留可折叠标题栏");
+else bad("drawio-fmt-section-header 从产物里消失了");
+
+// ---- 7. 原型必须和落地实现同步（否则预览会骗人）----
+console.log("原型 prototypes/style-palette-carousel.html");
+const fsx = require("child_process");
+const proto = fs.readFileSync(path.join(ROOT, "prototypes/style-palette-carousel.html"), "utf8");
+const scripts = [...proto.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+if (scripts.length !== 1) bad(`内联 <script> 数量 ${scripts.length}（应为 1）`);
+else {
+  const jsFile = path.join(ROOT, ".workbuddy/tmp/_proto.js");
+  fs.writeFileSync(jsFile, scripts[0]);
+  try {
+    fsx.execFileSync(process.execPath, ["--check", jsFile], { stdio: "pipe" });
+    ok("内联 JS 语法检查通过");
+  } catch (e) {
+    bad("内联 JS 语法错误: " + (e.stderr ? e.stderr.toString().split("\n")[0] : e.message));
+  }
+}
+// 原型的 PAGES 必须与源码 STYLE_PRESET_PAGES 完全一致
+const pm = proto.match(/var PAGES = (\[[\s\S]*?\n\]);/);
+if (!pm) bad("原型里找不到 PAGES 数组");
+else {
+  try {
+    const p = new Function("return " + pm[1])();
+    let diff = 0;
+    if (p.length !== EXPECT.length) diff++;
+    for (let i = 0; i < EXPECT.length; i++) {
+      const pg = p[i] || [];
+      if (pg.length !== 8) { diff++; continue; }
+      for (let j = 0; j < 8; j++) {
+        const a = pg[j], e = EXPECT[i][j];
+        if ([a.fill, a.stroke, a.gradient ?? null, !!a.noFill].join("|") !== e.join("|")) {
+          diff++;
+          bad(`原型第 ${i + 1} 页第 ${j + 1} 块与源码不一致`);
+        }
+      }
+    }
+    if (!diff) ok("原型 PAGES（48 组）与 src/FormatPanel.ts / 参考图三方一致");
+  } catch (e) { bad("原型 PAGES 求值失败: " + e.message); }
+}
+// 三列对照是否齐、②③ 是否共用同一套 palette 结构
+const cols = (proto.match(/class="sidebar"/g) || []).length;
+(cols === 3 ? ok : bad)(`对照列数 ${cols}（① 3×4 / ② v0.17.0 / ③ v0.17.1 应为 3）`);
+const pals = (proto.match(/class="drawio-fmt-palette" data-palette/g) || []).length;
+(pals === 2 ? ok : bad)(`data-palette 挂载点 ${pals}（②③ 应各一个）`);
+if (proto.includes('class="drawio-fmt-flat"') && proto.includes('class="drawio-fmt-divider"'))
+  ok("③ 列用 .drawio-fmt-flat + .drawio-fmt-divider（与落地标记一致）");
+else bad("③ 列缺少分割线结构");
+// ② 列必须保留「填充」标题栏 + 旧的 14px 间距，否则对照就失真了
+if (/\.col-v170 \.drawio-fmt-palette\s*\{\s*margin-bottom:\s*14px/.test(proto))
+  ok("② 列用 .col-v170 还原旧的 palette 下边距 14px");
+else bad("② 列没有还原 14px 的旧间距，对照会失真");
+// 原型 CSS 的关键数值必须与 styles.css 一致
+const want = [
+  [/\.drawio-fmt-palette\s*\{\s*margin-bottom:\s*11px/, "palette margin-bottom 11px"],
+  [/\.drawio-fmt-divider\s*\{[^}]*margin:\s*12px 0/, "基础 divider 12px"],
+  [/\.drawio-fmt-flat > \.drawio-fmt-divider\s*\{\s*margin:\s*0 0 10px/, "扁平 divider 0/10px"],
+  [/aspect-ratio:\s*1\.5/, "色块 1.5 宽高比"],
+  [/width:\s*9px; height:\s*9px/, "圆点 9px"],
+  [/gap:\s*9px; margin-top:\s*10px/, "圆点间距 9px"],
+  [/button:not\(\.clickable-icon\)\s*\{/, "Obsidian 按钮规则已抄入（否则按钮态会失真）"],
+];
+const badCss = want.filter(([re]) => !re.test(proto)).map(([, n]) => n);
+(badCss.length === 0 ? ok : bad)(`原型 CSS 数值与落地一致 ${want.length - badCss.length}/${want.length}` +
+  (badCss.length ? ` 缺: ${badCss.join(", ")}` : ""));
+
 console.log("\n" + (fail ? `❌ ${fail} 项未通过` : "✅ 全部通过"));
 process.exit(fail ? 1 : 0);

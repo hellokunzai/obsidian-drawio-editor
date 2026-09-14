@@ -595,8 +595,9 @@ body.drawio-palette-resizing {
 }
 
 /* 样式 — 配色轮播（左右箭头 + 4×2 单色块 + 分页圆点） */
+/* 配色轮播：与下方分割线的间距（11px + 分割线自身 0）对齐参考图 */
 .drawio-fmt-palette {
-  margin-bottom: 14px;
+  margin-bottom: 11px;
 }
 
 .drawio-fmt-stylepager {
@@ -845,6 +846,12 @@ body.drawio-palette-resizing {
   height: 1px;
   background: var(--background-modifier-border);
   margin: 12px 0;
+}
+
+/* 无标题栏的扁平分组（填充组）：一条分割线与上方内容分隔。
+   分割线上方不留间距 → 间距由 .drawio-fmt-palette 的 margin-bottom 决定；下方 10px 接内容。 */
+.drawio-fmt-flat > .drawio-fmt-divider {
+  margin: 0 0 10px;
 }
 
 /* 颜色块（内含透明 input[type=color] 覆盖层） */

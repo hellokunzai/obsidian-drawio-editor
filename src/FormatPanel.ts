@@ -257,9 +257,9 @@ export class FormatPanel {
     // 配色轮播：左右箭头 + 4×2 单色块 + 分页圆点
     pane.appendChild(this.buildStylePalette());
 
-    // 填充
+    // 填充：改用「分割线 + 内容」的扁平分组，不再渲染可折叠的「填充」标题栏
     pane.appendChild(
-      this.section(t("format.fill"), (body) => {
+      this.flatSection((body) => {
         const row = h("div", "drawio-fmt-row");
         this.fillCheck = h("input") as HTMLInputElement;
         this.fillCheck.type = "checkbox";
@@ -1011,6 +1011,17 @@ export class FormatPanel {
   }
 
   // ---------- 通用控件构造 ----------
+
+  /**
+   * 扁平分组：只用一条分割线与上方内容分隔，没有标题栏、也不可折叠。
+   * 「填充 / 渐变」用它代替原来的折叠标题栏，对齐 draw.io 样式面板的观感。
+   */
+  private flatSection(fill: (body: HTMLElement) => void): HTMLElement {
+    const group = h("div", "drawio-fmt-flat");
+    group.appendChild(h("div", "drawio-fmt-divider"));
+    fill(group);
+    return group;
+  }
 
   private section(
     title: string,
