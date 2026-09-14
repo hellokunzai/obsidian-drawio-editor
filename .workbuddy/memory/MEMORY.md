@@ -13,7 +13,12 @@
   - 类型检查：`"C:/Users/hellokunzai/.workbuddy/binaries/node/versions/22.22.2-3/node.exe" node_modules/typescript/bin/tsc -noEmit -skipLibCheck`
   - 构建：`".../node.exe" esbuild.config.mjs --production`
 - Bash 缺 `dirname/head/tail/ls/wc/git` 等命令，但 node/python 本身正常返回 exit code。
-- 校验中文文案：esbuild minify 把非 ASCII 转成 `\uXXXX`，先用 `main.js.replace(/\\u([0-9a-fA-F]{4})/g, …)` 反转义再 `includes()`。
+- 校验中文文案：esbuild minify 把非 ASCII 转义，**U+0080~U+00FF 用 `\xHH`（如 `·` → `\xB7`），
+  更靠后的才用 `\uXXXX`**。只反转义 `\uXXXX` 会把「已打进产物」的文案误判成缺失。
+  两种都要换：`main.js.replace(/\\u([0-9a-fA-F]{4})/g, …).replace(/\\x([0-9a-fA-F]{2})/g, …)` 再 `includes()`。
+- **本机拿不到无头浏览器截图**：无 playwright 缓存，`agent-browser` 需下 500MB Chromium 且 PATH 里没 npm；
+  直接调系统 Edge 153 的 `--headless --screenshot` 也产不出文件。要截图先做一次 `npm i -g agent-browser && agent-browser install`。
+  没截图时不要声称「已像素验证」。
 - 看截图取证：无 PIL，用 `python -m venv` + `pip install pillow` 逐像素扫描。
 
 ## CSS 铁律
@@ -89,3 +94,17 @@
 - v0.16.2 起形状面板分组统一为：便笺本（Scratchpad）、通用（General）、杂项（Misc）、高级（Advanced）。
 - 分组定义在 `src/shapes.ts#getAllShapeCategories()`；标题翻译在 `src/i18n/index.ts`。
 - 便笺本内容为动态收藏，渲染逻辑在 `src/DrawioView.ts`。
+
+## 样式面板配色轮播（v0.17.0 起）
+- 「样式」Tab 顶部 = 6 页 × 8 块 = **48 组 draw.io 官方配色**，定义在 `src/FormatPanel.ts#STYLE_PRESET_PAGES`，
+  `StylePreset = { fill, stroke, gradient?, noFill? }`，每页 8 块（`STYLE_PRESET_PER_PAGE`）。
+- 这些色值是**从用户给的 draw.io 截图逐像素还原**的（python + zlib 手写 PNG 解码 → 连通域 + 梯度最小二乘；
+  脚本留在 `.workbuddy/tmp/extract_palette2.py` / `fit.py`）。要改配色，先跑
+  `.workbuddy/tmp/verify-palette.js` —— 它会把源码里的数组抠出来跟期望表逐字段比对，防手抄错。
+- 第 4 页第 2 块是**无填充**（棋盘格）；**第 5 页是渐变组**（`fillColor` 在上、`gradientColor` 在下 = `south`）。
+  draw.io 的渐变块实测 H 方向恒定、V 方向线性，端点靠外推拟合得到。
+- 色块画法 = 填充色打底 + 1px「描边色」边框（不是旧版的对角双色）；`aspect-ratio: 1.5`（参考图 45×30）。
+- 箭头**循环翻页**（首/末页不变暗，说明参考图不是 disabled）；圆点可点跳页。
+- `matchStylePreset()` 的坑：#ffffff/#000000 在 5 页里重复，**必须先扫当前可见页再回退全局首个**，
+  否则每次选中都无谓跳页。页内 8 组无重复。
+- 点「纯色预设」要**显式清掉 gradientColor**，否则样式对不上、高亮永远命不中。

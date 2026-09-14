@@ -31,20 +31,89 @@ const FONT_SIZES = [
   8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 56, 64, 72,
 ];
 
-/** 「样式」Tab 顶部的快速配色预设：点击即套用 填充 + 描边 */
-const QUICK_STYLES: Array<{ fill: string; stroke: string }> = [
-  { fill: "#ffffff", stroke: "#333333" },
-  { fill: "#dbeafe", stroke: "#167dff" },
-  { fill: "#dcfce7", stroke: "#16a34a" },
-  { fill: "#fef3c7", stroke: "#d97706" },
-  { fill: "#fee2e2", stroke: "#dc2626" },
-  { fill: "#f3e8ff", stroke: "#7c3aed" },
-  { fill: "#fde68a", stroke: "#b45309" },
-  { fill: "#bfdbfe", stroke: "#1d4ed8" },
-  { fill: "#333333", stroke: "#000000" },
-  { fill: "#167dff", stroke: "#0f5fd6" },
-  { fill: "#16a34a", stroke: "#15803d" },
-  { fill: "#dc2626", stroke: "#991b1b" },
+/** 单条配色预设：点击后一次性套用「填充 + 描边」（可选附带竖向渐变） */
+interface StylePreset {
+  /** 填充色 */
+  fill: string;
+  /** 描边色，同时用作色块边框色 */
+  stroke: string;
+  /** 渐变色；不设表示纯色填充 */
+  gradient?: string;
+  /** 无填充：写入 fillColor=none，色块渲染成棋盘格 */
+  noFill?: boolean;
+}
+
+/** 配色轮播每页的色块数（4 列 × 2 行） */
+const STYLE_PRESET_PER_PAGE = 8;
+
+/**
+ * 「样式」Tab 顶部的配色轮播：6 页 × 8 组 = 48 组预设。
+ *
+ * 色值与顺序按 draw.io 官方样式面板逐像素还原（参考截图 6 张）：
+ * 1) 默认浅色  2) 饱和彩色  3) 暖色/深色  4) 粉彩（含「无填充」）
+ * 5) 竖向渐变  6) 柔和低饱和
+ */
+const STYLE_PRESET_PAGES: StylePreset[][] = [
+  [
+    { fill: "#ffffff", stroke: "#000000" },
+    { fill: "#f5f5f5", stroke: "#666666" },
+    { fill: "#dae8fc", stroke: "#6c8ebf" },
+    { fill: "#d5e8d4", stroke: "#82b366" },
+    { fill: "#ffe6cc", stroke: "#d79b00" },
+    { fill: "#fff2cc", stroke: "#d6b656" },
+    { fill: "#f8cecc", stroke: "#b85450" },
+    { fill: "#e1d5e7", stroke: "#9673a6" },
+  ],
+  [
+    { fill: "#ffffff", stroke: "#000000" },
+    { fill: "#60a917", stroke: "#2d7600" },
+    { fill: "#008a00", stroke: "#005700" },
+    { fill: "#1ba1e2", stroke: "#006eaf" },
+    { fill: "#0050ef", stroke: "#001dbc" },
+    { fill: "#6a00ff", stroke: "#3700cc" },
+    { fill: "#d80073", stroke: "#a50040" },
+    { fill: "#a20025", stroke: "#6f0000" },
+  ],
+  [
+    { fill: "#e51400", stroke: "#b20000" },
+    { fill: "#fa6800", stroke: "#c73500" },
+    { fill: "#f0a30a", stroke: "#bd7000" },
+    { fill: "#e3c800", stroke: "#b09500" },
+    { fill: "#6d8764", stroke: "#3a5431" },
+    { fill: "#647687", stroke: "#314354" },
+    { fill: "#76608a", stroke: "#432d57" },
+    { fill: "#a0522d", stroke: "#6d1f00" },
+  ],
+  [
+    { fill: "#ffffff", stroke: "#000000" },
+    { fill: "#ffffff", stroke: "#000000", noFill: true },
+    { fill: "#fad7ac", stroke: "#b46504" },
+    { fill: "#fad9d5", stroke: "#ae4132" },
+    { fill: "#b0e3e6", stroke: "#0e8088" },
+    { fill: "#b1ddf0", stroke: "#10739e" },
+    { fill: "#d0cee2", stroke: "#56517e" },
+    { fill: "#bac8d3", stroke: "#23445d" },
+  ],
+  [
+    { fill: "#ffffff", stroke: "#000000" },
+    { fill: "#f6f6f6", stroke: "#666666", gradient: "#b0b0b0" },
+    { fill: "#dce9fc", stroke: "#6c8ebf", gradient: "#79a2df" },
+    { fill: "#d6e8d5", stroke: "#82b366", gradient: "#94cf72" },
+    { fill: "#ffce29", stroke: "#d79b00", gradient: "#ffa300" },
+    { fill: "#fff3ce", stroke: "#d6b656", gradient: "#ffd861" },
+    { fill: "#f8d0ce", stroke: "#b85450", gradient: "#e96661" },
+    { fill: "#e6d1df", stroke: "#996185", gradient: "#d46e99" },
+  ],
+  [
+    { fill: "#ffffff", stroke: "#000000" },
+    { fill: "#eeeeee", stroke: "#36393d" },
+    { fill: "#f9f7ed", stroke: "#36393d" },
+    { fill: "#ffcc99", stroke: "#36393d" },
+    { fill: "#cce5ff", stroke: "#36393d" },
+    { fill: "#ffff88", stroke: "#36393d" },
+    { fill: "#cdeb8b", stroke: "#36393d" },
+    { fill: "#ffcccc", stroke: "#36393d" },
+  ],
 ];
 
 export class FormatPanel {
@@ -59,6 +128,12 @@ export class FormatPanel {
 
   // 样式 Tab
   private styleGrid!: HTMLElement;
+  private stylePrevBtn!: HTMLButtonElement;
+  private styleNextBtn!: HTMLButtonElement;
+  private styleDots: HTMLButtonElement[] = [];
+  private stylePageIndex = 0;
+  /** 当前图形命中的预设全局序号（跨页，-1 = 未命中任何预设） */
+  private activePresetIndex = -1;
   private fillCheck!: HTMLInputElement;
   private fillColor!: HTMLElement;
   private gradientCheck!: HTMLInputElement;
@@ -179,23 +254,8 @@ export class FormatPanel {
     const pane = h("div", "drawio-fmt-tabpane active");
     pane.dataset.pane = "style";
 
-    // 快速配色网格
-    const carousel = h("div", "drawio-fmt-style-grid");
-    this.styleGrid = carousel;
-    QUICK_STYLES.forEach((s) => {
-      const sw = h("div", "drawio-fmt-swatch");
-      sw.style.background = `linear-gradient(135deg, ${s.fill} 0 50%, ${s.stroke} 50% 100%)`;
-      sw.addEventListener("click", () => {
-        this.applyStyle(this.MxConstants.STYLE_FILLCOLOR, s.fill);
-        this.applyStyle(this.MxConstants.STYLE_STROKECOLOR, s.stroke);
-        this.fillCheck.checked = true;
-        this.strokeCheck.checked = true;
-        this.setColorBlock(this.fillColor, s.fill);
-        this.setColorBlock(this.strokeColor, s.stroke);
-      });
-      carousel.appendChild(sw);
-    });
-    pane.appendChild(carousel);
+    // 配色轮播：左右箭头 + 4×2 单色块 + 分页圆点
+    pane.appendChild(this.buildStylePalette());
 
     // 填充
     pane.appendChild(
@@ -380,6 +440,217 @@ export class FormatPanel {
     );
 
     return pane;
+  }
+
+  // ---------- 配色轮播 ----------
+
+  /** 构建「左右箭头 + 4×2 色块 + 分页圆点」整块，并渲染首页 */
+  private buildStylePalette(): HTMLElement {
+    const wrap = h("div", "drawio-fmt-palette");
+
+    const pager = h("div", "drawio-fmt-stylepager");
+
+    this.stylePrevBtn = this.pagerButton("M15 5 8 12l7 7", t("format.palettePrev"));
+    this.stylePrevBtn.addEventListener("click", () => this.changeStylePage(-1));
+    pager.appendChild(this.stylePrevBtn);
+
+    this.styleGrid = h("div", "drawio-fmt-style-grid");
+    pager.appendChild(this.styleGrid);
+
+    this.styleNextBtn = this.pagerButton("M9 5l7 7-7 7", t("format.paletteNext"));
+    this.styleNextBtn.addEventListener("click", () => this.changeStylePage(1));
+    pager.appendChild(this.styleNextBtn);
+
+    wrap.appendChild(pager);
+
+    // 分页圆点（可点跳页；与参考图外观一致，只是多了可点）
+    const dots = h("div", "drawio-fmt-style-dots");
+    STYLE_PRESET_PAGES.forEach((_, i) => {
+      const dot = h("button", "drawio-fmt-style-dot") as HTMLButtonElement;
+      dot.title = t("format.palettePage", { n: String(i + 1) });
+      dot.setAttribute("aria-label", t("format.palettePage", { n: String(i + 1) }));
+      dot.addEventListener("click", () => this.setStylePage(i));
+      dots.appendChild(dot);
+      this.styleDots.push(dot);
+    });
+    wrap.appendChild(dots);
+
+    this.renderStylePage();
+    return wrap;
+  }
+
+  /** 一个纯图标的翻页按钮（挂 clickable-icon，避开 Obsidian 的按钮默认样式） */
+  private pagerButton(d: string, label: string): HTMLButtonElement {
+    const b = h(
+      "button",
+      "drawio-fmt-pager-btn clickable-icon"
+    ) as HTMLButtonElement;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+    b.appendChild(svg);
+    return b;
+  }
+
+  /** 渲染当前页的 8 个色块 */
+  private renderStylePage(): void {
+    const page = STYLE_PRESET_PAGES[this.stylePageIndex] ?? [];
+    this.styleGrid.empty();
+    page.forEach((preset, i) => {
+      const index = this.stylePageIndex * STYLE_PRESET_PER_PAGE + i;
+      const sw = h("button", "drawio-fmt-swatch") as HTMLButtonElement;
+      sw.dataset.presetIndex = String(index);
+      sw.title = this.presetTooltip(preset);
+      sw.setAttribute("aria-label", sw.title);
+      this.paintSwatch(sw, preset);
+      if (index === this.activePresetIndex) sw.classList.add("active");
+      sw.addEventListener("click", () => this.applyStylePreset(preset, index));
+      this.styleGrid.appendChild(sw);
+    });
+    this.updateStyleDots();
+  }
+
+  /** 色块上色：纯色 / 竖向渐变 / 无填充棋盘格 */
+  private paintSwatch(sw: HTMLElement, preset: StylePreset): void {
+    if (preset.noFill) {
+      sw.classList.add("is-none");
+      sw.style.background = "";
+    } else {
+      sw.style.background = preset.gradient
+        ? `linear-gradient(180deg, ${preset.fill} 0%, ${preset.gradient} 100%)`
+        : preset.fill;
+    }
+    sw.style.borderColor = preset.stroke;
+  }
+
+  private presetTooltip(preset: StylePreset): string {
+    const fill = preset.noFill
+      ? t("format.presetNone")
+      : preset.gradient
+        ? `${preset.fill} → ${preset.gradient}`
+        : preset.fill;
+    return t("format.presetTooltip", { fill, stroke: preset.stroke });
+  }
+
+  private updateStyleDots(): void {
+    this.styleDots.forEach((dot, i) =>
+      dot.classList.toggle("active", i === this.stylePageIndex)
+    );
+  }
+
+  /** 循环翻页（末页点右回到首页） */
+  private changeStylePage(delta: number): void {
+    this.setStylePage(this.stylePageIndex + delta);
+  }
+
+  private setStylePage(page: number): void {
+    const total = STYLE_PRESET_PAGES.length;
+    this.stylePageIndex = ((page % total) + total) % total;
+    this.renderStylePage();
+  }
+
+  /**
+   * 找出与当前样式完全一致（填充 + 描边 + 渐变色）的预设，返回全局序号；未命中返回 -1。
+   *
+   * 优先在**当前可见页**里找：像 #ffffff/#000000 这种在 5 页里都出现的预设，
+   * 若一律返回首页会让面板无谓地跳页。当前页没有才回退到全局首个匹配。
+   * 注意 mxGraph 会把纯数值样式值读成 number，这里统一转字符串比较。
+   */
+  private matchStylePreset(fill: any, stroke: any, gradient: any): number {
+    const norm = (v: any) =>
+      v == null || v === this.MxConstants.NONE ? "none" : String(v).toLowerCase();
+    const f = norm(fill);
+    const s = norm(stroke);
+    const g = norm(gradient);
+
+    const hit = (preset: StylePreset) =>
+      norm(preset.noFill ? "none" : preset.fill) === f &&
+      norm(preset.stroke) === s &&
+      norm(preset.gradient) === g;
+
+    const current = STYLE_PRESET_PAGES[this.stylePageIndex] ?? [];
+    const localIndex = current.findIndex(hit);
+    if (localIndex >= 0) {
+      return this.stylePageIndex * STYLE_PRESET_PER_PAGE + localIndex;
+    }
+
+    for (let p = 0; p < STYLE_PRESET_PAGES.length; p++) {
+      const index = STYLE_PRESET_PAGES[p].findIndex(hit);
+      if (index >= 0) return p * STYLE_PRESET_PER_PAGE + index;
+    }
+    return -1;
+  }
+
+  /** 按当前样式同步轮播：命中就翻到那一页并高亮，未命中则清空高亮 */
+  private syncStylePalette(fill: any, stroke: any, gradient: any): void {
+    const index = this.matchStylePreset(fill, stroke, gradient);
+    this.setActivePreset(index);
+    if (index >= 0) {
+      const page = Math.floor(index / STYLE_PRESET_PER_PAGE);
+      if (page !== this.stylePageIndex) this.setStylePage(page);
+    }
+  }
+
+  private setActivePreset(index: number): void {
+    this.activePresetIndex = index;
+    this.styleGrid
+      .querySelectorAll(".drawio-fmt-swatch")
+      .forEach((el) =>
+        el.classList.toggle(
+          "active",
+          (el as HTMLElement).dataset.presetIndex === String(index)
+        )
+      );
+  }
+
+  /** 点色块：一次性写入 填充 + 描边（+ 渐变色），并回填下方控件 */
+  private applyStylePreset(preset: StylePreset, index: number): void {
+    // 无选中时 applyStyle 会静默早退，这里也提前返回，避免控件状态「自己骗自己」
+    if (!this.graph || this.currentCells.length === 0) return;
+
+    this.applyStyle(
+      this.MxConstants.STYLE_FILLCOLOR,
+      preset.noFill ? "none" : preset.fill
+    );
+    this.applyStyle(this.MxConstants.STYLE_STROKECOLOR, preset.stroke);
+
+    // 纯色预设要顺手清掉可能存在的旧渐变，否则样式与色块对不上
+    if (preset.gradient) {
+      this.applyStyle(this.MxConstants.STYLE_GRADIENTCOLOR, preset.gradient);
+      this.applyStyle(
+        this.MxConstants.STYLE_GRADIENT_DIRECTION,
+        this.MxConstants.DIRECTION_SOUTH
+      );
+    } else {
+      this.applyStyle(this.MxConstants.STYLE_GRADIENTCOLOR, null);
+      this.applyStyle(this.MxConstants.STYLE_GRADIENT_DIRECTION, null);
+    }
+
+    this.fillCheck.checked = !preset.noFill;
+    this.strokeCheck.checked = true;
+    this.setColorBlock(this.fillColor, preset.noFill ? "#ffffff" : preset.fill);
+    this.setColorBlock(this.strokeColor, preset.stroke);
+
+    const gradOn = !!preset.gradient;
+    this.gradientCheck.checked = gradOn;
+    this.gradientDirection.disabled = !gradOn;
+    (this.gradientColor as any)._input.disabled = !gradOn;
+    if (gradOn) {
+      this.setColorBlock(this.gradientColor, preset.gradient as string);
+      this.gradientDirection.value = this.MxConstants.DIRECTION_SOUTH;
+    }
+
+    // 刚点过的那一组就是当前真相，立刻高亮（refresh 要等下次选中才会跑）
+    this.setActivePreset(index);
   }
 
   private buildTextPane(): HTMLElement {
@@ -1049,6 +1320,7 @@ export class FormatPanel {
     const stroke = get(this.MxConstants.STYLE_STROKECOLOR, "none");
     this.strokeCheck.checked = stroke !== "none" && stroke != null;
     this.setColorBlock(this.strokeColor, this.toHex(stroke));
+    this.syncStylePalette(fill, stroke, gradient);
     const dashed = get(this.MxConstants.STYLE_DASHED, null);
     const dashPattern = get(this.MxConstants.STYLE_DASH_PATTERN, null);
     let lineValue = "solid";
