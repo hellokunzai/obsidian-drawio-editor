@@ -44,7 +44,7 @@ import { TagsPanel } from "./TagsPanel";
 import { MinimapPanel } from "./MinimapPanel";
 import { setSvgMarkup } from "./svg";
 
-export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
+export const VIEW_TYPE_DRAWIO = "drawio-studio-view";
 /** 自绘流程图图标 id，在 main.ts 的 onload 里通过 addIcon 注册 */
 export const DRAWIO_ICON_ID = "drawio-diagram";
 
@@ -208,7 +208,7 @@ export class DrawioView extends FileView {
   private buildUI(): void {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
-    container.addClass("drawio-editor-container");
+    container.addClass("drawio-studio-container");
 
     // 顶部工具栏：横跨整个视图宽度（对齐 draw.io 顶部菜单栏的位置）。
     // 之前它挂在画布区里，导致形状面板和它挤在同一行、把顶部那一条挡住，

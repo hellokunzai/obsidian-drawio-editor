@@ -1,4 +1,4 @@
-# Draw.io Flowchart Editor
+# Drawio Studio
 
 Edit and view [draw.io](https://www.drawio.com/) diagrams directly inside Obsidian — works fully offline, with no external service and no network requests.
 
@@ -15,8 +15,8 @@ Edit and view [draw.io](https://www.drawio.com/) diagrams directly inside Obsidi
 ## Installation
 
 1. Download `main.js`, `manifest.json` and `styles.css` from the latest Release
-2. Copy them into `<vault>/.obsidian/plugins/drawio-editor/`
-3. Enable **Drawio Editor** under Settings → Community plugins
+2. Copy them into `<vault>/.obsidian/plugins/drawio-studio/`
+3. Enable **Drawio Studio** under Settings → Community plugins
 
 ## Usage
 
@@ -30,6 +30,13 @@ Edit and view [draw.io](https://www.drawio.com/) diagrams directly inside Obsidi
 - mxGraph ships with `allowEval` enabled on `mxStylesheetCodec` and `mxDefaultToolbarCodec`, which would let a hand-crafted `.drawio` file run JavaScript from inside its stylesheet. The plugin switches both off immediately after the engine loads
 - `isDesktopOnly: true` — desktop only
 - No network requests, no telemetry, no ads
+
+## Compatibility with other draw.io plugins
+
+`.drawio` can only be claimed by one plugin at a time: Obsidian's view registry rejects a second
+registration of the same extension, and the plugin that loses the race ends up with a load error.
+So this plugin cannot be enabled together with **Drawio** (`drawio-editor`, by doge-liang) or the
+older **Diagrams** (`drawio-obsidian`) — keep only one of them enabled.
 
 ## Licence
 
@@ -54,8 +61,8 @@ Edit and view [draw.io](https://www.drawio.com/) diagrams directly inside Obsidi
 ## 安装
 
 1. 下载最新 Release 中的 `main.js`、`manifest.json`、`styles.css` 三个文件
-2. 放入 `<vault>/.obsidian/plugins/drawio-editor/` 目录
-3. 在 Obsidian 设置 → 社区插件中启用 **Drawio Editor**
+2. 放入 `<vault>/.obsidian/plugins/drawio-studio/` 目录
+3. 在 Obsidian 设置 → 社区插件中启用 **Drawio Studio**
 
 ## 使用
 
@@ -90,8 +97,8 @@ npm run build                                                # 生产构建，�
 3. 打 tag 并推送（**tag 名就是版本号，不加 `v` 前缀**）：
 
    ```bash
-   git tag 0.18.0
-   git push origin 0.18.0
+   git tag 0.18.1
+   git push origin 0.18.1
    ```
 
 CI 会构建后创建 GitHub Release，附 `main.js` / `manifest.json` / `styles.css` 三件套。
@@ -112,6 +119,13 @@ CI 会构建后创建 GitHub Release，附 `main.js` / `manifest.json` / `styles
 - **CI**：push 到 main 或提 PR 时跑类型检查 + 构建，确保改动可编译
 - **Version Check**：校验 `manifest.json` / `package.json` / `versions.json` 三处版本号一致，并顺带检查 manifest 元数据合规（id / name / description / author）
 - 两个检查都可在本地复现：`node .github/scripts/check-version.mjs`
+
+## 与其它 draw.io 插件的兼容性
+
+`.drawio` 这个扩展名同一时刻只能被一个插件占用：Obsidian 的视图注册表会拒绝重复注册，
+注册失败的那个插件会直接加载失败。所以本插件**无法与已上架的 Drawio（`drawio-editor`，作者
+doge-liang）或更早的 Diagrams（`drawio-obsidian`）同时启用**——后加载的那一个会报加载错误，
+请只保留其中一个。
 
 ## 许可证
 

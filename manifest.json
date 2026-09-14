@@ -1,7 +1,7 @@
 {
-  "id": "drawio-editor",
-  "name": "Drawio Editor",
-  "version": "0.18.0",
+  "id": "drawio-studio",
+  "name": "Drawio Studio",
+  "version": "0.18.1",
   "minAppVersion": "1.4.0",
   "description": "Edit and view draw.io diagrams directly in Obsidian. Compatible with draw.io format, all shapes supported, no external dependency.",
   "author": "hellokunzai",

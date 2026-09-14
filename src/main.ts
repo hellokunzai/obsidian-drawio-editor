@@ -36,7 +36,7 @@ export default class DrawioPlugin extends Plugin {
     // 之前用的 "diagram-project" 在部分客户端不存在，会渲染成空白按钮
     addIcon(DRAWIO_ICON_ID, DRAWIO_ICON_SVG);
 
-    // Settings panel (appears under Settings → Community plugins → Drawio Editor)
+    // Settings panel (appears under Settings → Community plugins → Drawio Studio)
     this.addSettingTab(new DrawioSettingTab(this.app, this));
 
     // Register the custom view for .drawio files
