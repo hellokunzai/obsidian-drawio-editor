@@ -117,7 +117,12 @@ body.drawio-palette-resizing {
   margin-bottom: 0;
 }
 
-.drawio-palette-header {
+/* ⚠️ 重复类名 = 把特异性从 (0,1,0) 提到 (0,2,0)，用于压过 Obsidian app.css 里的
+   `button:not(.clickable-icon) { background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`
+   （特异性 0,1,1）。不加这层提权，自绘 <button> 的「透明底 / 无边框 / 无内描边」会被整条盖掉，
+   渲染成主题灰底实心方块。这里用重复类名而非父级前缀：浮动面板（Layers/Tags/Find/TextEdit）
+   挂在 body 上且可被拖动，祖先链不稳定，重复类名不依赖 DOM 结构，绝对可靠。 */
+.drawio-palette-header.drawio-palette-header {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -132,6 +137,9 @@ body.drawio-palette-resizing {
   font-size: var(--font-ui-smaller);
   font-weight: 600;
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -258,32 +266,66 @@ body.drawio-palette-resizing {
   flex-wrap: wrap;
 }
 
-.drawio-toolbar-btn {
+/* ⚠️ 必须带 .drawio-toolbar 父级前缀：
+   Obsidian app.css 有 `button:not(.clickable-icon) { color: var(--text-color);
+   background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`（特异性 0,1,1），
+   单类名 .drawio-toolbar-btn（0,1,0）会被整条盖掉 → 按钮变成「主题灰底实心方块」。
+   三件事：① 这里用父级前缀升到 (0,2,0)；② DrawioView.ts 给按钮挂 Obsidian 自己的
+   clickable-icon 类，让那条规则直接不匹配；③ 显式写死背景/边框/阴影，不依赖主题变量兜底。 */
+.drawio-toolbar .drawio-toolbar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
+  /* min-* 也归零：主题按钮可能带 min-width/min-height，会把 30px 顶大 */
+  min-width: 0;
+  min-height: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-s, 4px);
   background: transparent;
-  color: var(--text-muted);
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  /* 与 Obsidian 侧边栏 ribbon 图标同色（--icon-color），旧版无此变量时退回 --text-muted */
+  color: var(--icon-color, var(--text-muted));
+  font: inherit;
+  line-height: 1;
   cursor: pointer;
-  transition: all 0.15s ease;
+  text-align: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
   padding: 0;
 }
 
-.drawio-toolbar-btn:hover {
+.drawio-toolbar .drawio-toolbar-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.drawio-toolbar-btn:active {
+.drawio-toolbar .drawio-toolbar-btn:active {
   background: var(--background-modifier-active-hover);
+  color: var(--text-normal);
 }
 
-.drawio-toolbar-btn svg {
+/* 图标尺寸写死在 CSS：避免主题的 .clickable-icon svg 规则改动图标大小 */
+.drawio-toolbar .drawio-toolbar-btn > svg {
   pointer-events: none;
+}
+
+.drawio-toolbar .drawio-toolbar-btn:not(.drawio-toolbar-viewbtn) > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 视图菜单按钮是「图标 + 下拉箭头」两个 svg，尺寸各自锁死 */
+.drawio-toolbar .drawio-toolbar-viewbtn > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.drawio-toolbar .drawio-toolbar-viewbtn > svg.drawio-toolbar-viewbtn-chev {
+  width: 10px;
+  height: 10px;
 }
 
 .drawio-toolbar-sep {
@@ -1180,7 +1222,8 @@ body.drawio-palette-resizing {
   pointer-events: auto;
 }
 
-.drawio-palette-scratch-del {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-palette-scratch-del.drawio-palette-scratch-del {
   position: absolute;
   top: 1px;
   right: 1px;
@@ -1196,6 +1239,9 @@ body.drawio-palette-resizing {
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 
@@ -1259,24 +1305,30 @@ body.drawio-palette-resizing {
   margin-top: 14px;
 }
 
-.drawio-text-edit-btn {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-text-edit-btn.drawio-text-edit-btn {
   padding: 6px 16px;
   font-size: 13px;
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
-  border-radius: 5px;
+  border-radius: var(--radius-s, 4px);
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-text-edit-btn:hover {
   background: var(--background-modifier-hover);
 }
 
-.drawio-text-edit-apply {
+/* 同特异性 (0,2,0)，靠书写顺序覆盖成强调色；box-shadow 归零避免主题内描边 */
+.drawio-text-edit-apply.drawio-text-edit-apply {
   background: #167dff;
   border-color: #167dff;
   color: #fff;
+  box-shadow: none;
 }
 
 .drawio-text-edit-apply:hover {
@@ -1538,7 +1590,7 @@ body.drawio-palette-resizing {
    视图菜单（工具栏最左侧按钮）
    ============================================================ */
 
-.drawio-toolbar-viewbtn {
+.drawio-toolbar .drawio-toolbar-viewbtn {
   width: 42px;
   gap: 1px;
 }
@@ -1547,7 +1599,8 @@ body.drawio-palette-resizing {
   opacity: 0.7;
 }
 
-.drawio-toolbar-viewbtn.is-open {
+.drawio-toolbar .drawio-toolbar-viewbtn.is-open,
+.drawio-toolbar .drawio-toolbar-viewbtn.is-open:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
@@ -1747,7 +1800,8 @@ body.drawio-palette-resizing {
   white-space: nowrap;
 }
 
-.drawio-toolwin-close {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-toolwin-close.drawio-toolwin-close {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1756,10 +1810,13 @@ body.drawio-palette-resizing {
   height: 20px;
   padding: 0;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-xs, 3px);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-toolwin-close:hover {
@@ -1841,7 +1898,8 @@ body.drawio-palette-resizing {
   white-space: nowrap;
 }
 
-.drawio-find-btn {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-find-btn.drawio-find-btn {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1850,10 +1908,13 @@ body.drawio-palette-resizing {
   height: 24px;
   padding: 0;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
+  border-radius: var(--radius-s, 4px);
   background: var(--background-primary);
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-find-btn:hover {
@@ -1861,7 +1922,8 @@ body.drawio-palette-resizing {
   color: var(--text-normal);
 }
 
-.drawio-find-btn-text {
+/* 与 .drawio-find-btn 同特异性 (0,2,0)，靠书写顺序覆盖 width/padding */
+.drawio-find-btn.drawio-find-btn-text {
   width: auto;
   padding: 0 8px;
   font-size: 12px;
@@ -1910,7 +1972,8 @@ body.drawio-palette-resizing {
   color: var(--text-error, #e24b4a);
 }
 
-.drawio-layers-icon {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-layers-icon.drawio-layers-icon {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1919,10 +1982,13 @@ body.drawio-palette-resizing {
   height: 20px;
   padding: 0;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-xs, 3px);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-layers-icon:hover {
@@ -1974,7 +2040,8 @@ body.drawio-palette-resizing {
   border-top: 1px solid var(--background-modifier-border);
 }
 
-.drawio-layers-btn {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-layers-btn.drawio-layers-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1982,10 +2049,13 @@ body.drawio-palette-resizing {
   height: 24px;
   padding: 0;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
+  border-radius: var(--radius-s, 4px);
   background: var(--background-primary);
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-layers-btn:hover:not(:disabled) {
@@ -2033,16 +2103,20 @@ body.drawio-palette-resizing {
   color: var(--text-normal);
 }
 
-.drawio-tags-chipdel {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-tags-chipdel.drawio-tags-chipdel {
   flex: 0 0 auto;
   padding: 0 3px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-xs, 3px);
   background: transparent;
   color: var(--text-faint);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-tags-chipdel:hover {
@@ -2066,16 +2140,20 @@ body.drawio-palette-resizing {
   color: var(--text-normal);
 }
 
-.drawio-tags-addbtn {
+/* 提权 (0,2,0)：压过 Obsidian 主题按钮的强设背景，理由见 .drawio-palette-header 处 */
+.drawio-tags-addbtn.drawio-tags-addbtn {
   flex: 0 0 auto;
   height: 24px;
   padding: 0 8px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
+  border-radius: var(--radius-s, 4px);
   background: var(--background-primary);
   color: var(--text-normal);
   font-size: 12px;
   cursor: pointer;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .drawio-tags-addbtn:hover:not(:disabled) {

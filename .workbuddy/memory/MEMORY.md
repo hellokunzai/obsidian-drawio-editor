@@ -23,8 +23,17 @@
 - **给插件自绘 `<button>` 定样式时，单个类名 (0,1,0) 一定不够。** Obsidian app.css 里有
   `button:not(.clickable-icon) { color: var(--text-color); background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`
   ＝ (0,1,1)，会整条盖掉你的「透明底」。表现就是按钮变成「主题灰底 + 1px 内描边实心方块」。
-  双保险：① 选择器加父级前缀（`.drawio-pagebar .drawio-pagebar-menu`，(0,2,0)）；② 给按钮挂 Obsidian 自己的 `clickable-icon` 类，让那条规则直接不匹配（顺带白拿 ribbon 的 `--icon-color` + `--icon-opacity` 观感）。
+  双保险：① 选择器提权到 (0,2,0)——祖先层级稳定的用父级前缀（`.drawio-pagebar .drawio-pagebar-menu`），
+  挂 body 且可拖动的浮动面板用**重复类名**（`.drawio-layers-btn.drawio-layers-btn`）；
+  ② 给按钮挂 Obsidian 自己的 `clickable-icon` 类，让那条规则直接不匹配（顺带白拿 ribbon 的 `--icon-color` + `--icon-opacity` 观感）。
   `<div>` 造的「按钮」没有这个问题，只有真 `<button>` 会。
+- **这个坑永远是一片不是一个：改完必须跑全量扫描。** 点对点修已被证伪两次（先漏了工具栏 12 个，
+  后发现全仓还有 11 个类中招）。扫描法：正向扫源码 `createEl("button")` 收集类名 → 反向扫
+  `styles.css` 找 `^\.[A-Za-z0-9_-]+$` 形式的纯单类名规则 → 取交集必须为空。
+- 提权后**基础类会压过自己的组合类**（`.btn` 提到 (0,2,0) 后 `.btn-text` 的 (0,1,0) 失效），
+  组合类要一起提权；`:hover` / `.is-active` 本身算 (0,2,0)，与提权后的基础规则同分，**必须写在后面**。
+- 提权是「把控制权还给按钮自己」，不是「统一刷成透明」：有边框有底色的按钮（查找、图层、标签、弹窗）
+  提权后应保持各自的 `--background-primary` + 1px 边框。
 - 排查手法：`%APPDATA%\obsidian\obsidian-<版本>.asar` 可以直接当 latin1 字符串读，
   正则 `/([^{}\n]{0,200}button[^{}\n]{0,120})\{([^{}]{0,500}interactive-normal[^{}]{0,300})\}/g` 能捞出原文，
   比猜主题快得多（asar 头部就是 JSON，app.css 明文在里面）。

@@ -702,8 +702,10 @@ export class DrawioView extends FileView {
     const toolbar = parent.createDiv({ cls: "drawio-toolbar" });
 
     // ★ 最左侧：视图菜单按钮（图标 + 下拉箭头），对齐 draw.io 顶部工具栏的第一个按钮
+    // clickable-icon：Obsidian 自己的图标按钮类，能让主题的
+    // `button:not(.clickable-icon)` 规则不匹配，避免被画成「灰底实心按钮」
     this.viewBtnEl = toolbar.createEl("button", {
-      cls: "drawio-toolbar-btn drawio-toolbar-viewbtn",
+      cls: "clickable-icon drawio-toolbar-btn drawio-toolbar-viewbtn",
       attr: { title: t("view.menu"), "aria-label": t("view.menu") },
     });
     this.viewBtnEl.innerHTML =
@@ -742,7 +744,10 @@ export class DrawioView extends FileView {
         toolbar.createDiv({ cls: "drawio-toolbar-sep" });
         continue;
       }
-      const el = toolbar.createEl("button", { cls: "drawio-toolbar-btn", attr: { title: btn.title || "" } });
+      const el = toolbar.createEl("button", {
+        cls: "clickable-icon drawio-toolbar-btn",
+        attr: { title: btn.title || "" },
+      });
       el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${this.getIconSvg(btn.icon || "")}</svg>`;
       el.addEventListener("click", (e) => {
         e.preventDefault();

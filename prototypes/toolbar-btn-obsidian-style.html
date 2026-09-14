@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>工具栏按钮 · Obsidian 风格修复预览</title>
+<style>
+  /* ===== 模拟 Obsidian 亮色主题变量 ===== */
+  :root {
+    --background-primary: #ffffff;
+    --background-secondary: #f6f7f8;
+    --background-modifier-hover: #e9e9e9;
+    --background-modifier-active-hover: #dddddd;
+    --background-modifier-border: #e0e0e0;
+    --interactive-normal: #f2f2f2;   /* ← 就是它把按钮染成灰底 */
+    --interactive-accent: #8b6cef;
+    --text-on-accent: #ffffff;
+    --text-normal: #222222;
+    --text-muted: #7a7a7a;
+    --icon-color: #6b6b6b;
+    --font-ui-smaller: 11px;
+    --font-ui-small: 13px;
+    --radius-xs: 3px;
+    --radius-s: 4px;
+    --input-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .theme-dark {
+    --background-primary: #1e1e1e;
+    --background-secondary: #262626;
+    --background-modifier-hover: #2f2f2f;
+    --background-modifier-active-hover: #3a3a3a;
+    --background-modifier-border: #3d3d3d;
+    --interactive-normal: #363636;
+    --text-normal: #e6e6e6;
+    --text-muted: #9a9a9a;
+    --icon-color: #a0a0a0;
+    --input-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  body {
+    margin: 0; padding: 28px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--background-primary); color: var(--text-normal);
+  }
+
+  /* ============================================================
+     ★ 关键：复刻 Obsidian app.css 里那条罪魁祸首
+     button:not(.clickable-icon)  —— 特异性 (0,1,1)
+     它会把任何自绘 <button> 单类名规则 (0,1,0) 的
+     background / border / box-shadow 整条盖掉
+     ============================================================ */
+  button:not(.clickable-icon) {
+    color: var(--text-normal);
+    background-color: var(--interactive-normal);
+    box-shadow: var(--input-shadow);
+  }
+
+  /* ============ 修复前的写法（单类名，0,1,0 → 被上面盖掉）============ */
+  .demo-before .drawio-toolbar-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    border: none; border-radius: 4px;
+    background: transparent;          /* ← 被盖成 --interactive-normal */
+    color: var(--text-muted);         /* ← 被盖成 --text-normal */
+    cursor: pointer; padding: 0;
+  }
+
+  /* ============ 修复后的写法（重复类名，0,2,0 → 压过主题规则）============ */
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    min-width: 0; min-height: 0;
+    border: none; border-radius: var(--radius-s, 4px);
+    background: transparent;
+    box-shadow: none;
+    appearance: none; -webkit-appearance: none;
+    color: var(--icon-color, var(--text-muted));
+    font: inherit; line-height: 1;
+    cursor: pointer; text-align: center; padding: 0;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn:active {
+    background: var(--background-modifier-active-hover);
+    color: var(--text-normal);
+  }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn > svg { width: 16px; height: 16px; pointer-events: none; }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn.drawio-toolbar-viewbtn { width: 42px; gap: 1px; }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn.drawio-toolbar-viewbtn > svg { width: 17px; height: 17px; }
+  .demo-after .drawio-toolbar-btn.drawio-toolbar-btn.drawio-toolbar-viewbtn > svg.drawio-toolbar-viewbtn-chev { width: 10px; height: 10px; }
+
+  /* 修复前也补上 viewbtn 的宽度，便于对照 */
+  .demo-before .drawio-toolbar-viewbtn { width: 42px; }
+
+  /* ============ 工具栏容器 ============ */
+  .drawio-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    flex-wrap: wrap;
+  }
+  .drawio-toolbar-sep {
+    width: 1px; height: 20px;
+    background: var(--background-modifier-border);
+    margin: 0 4px;
+  }
+  .drawio-toolbar-btn svg { pointer-events: none; }
+
+  /* 页面栏 & 浮动面板的小按钮（同一根因，一并修） */
+  .drawio-pagebar {
+    height: 34px; display: flex; align-items: stretch;
+    background: var(--background-secondary);
+    border-top: 1px solid var(--background-modifier-border);
+  }
+  .drawio-pagebar .drawio-pagebar-menu, .drawio-pagebar .drawio-pagebar-add {
+    width: 26px; height: 26px; min-width: 0; min-height: 0;
+    flex-shrink: 0; align-self: center; margin: 0 6px; padding: 0;
+    border: none; border-radius: var(--radius-s, 4px);
+    background: transparent; box-shadow: none;
+    appearance: none; -webkit-appearance: none;
+    color: var(--icon-color, var(--text-muted));
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .drawio-pagebar .drawio-pagebar-menu:hover, .drawio-pagebar .drawio-pagebar-add:hover {
+    background: var(--background-modifier-hover); color: var(--text-normal);
+  }
+  .drawio-pagebar-tabs { display: flex; align-items: stretch; }
+  .drawio-pagebar-tab {
+    display: flex; align-items: center; gap: 4px; align-self: center;
+    height: 26px; margin: 0 2px; padding: 0 6px 0 10px;
+    border: 1px solid transparent; border-radius: var(--radius-s, 4px);
+    color: var(--text-muted); font-size: var(--font-ui-small); cursor: pointer;
+  }
+  .drawio-pagebar-tab.is-active {
+    background: var(--background-primary); color: var(--text-normal); font-weight: 500;
+  }
+  .drawio-pagebar .drawio-pagebar-caret {
+    width: 16px; height: 16px; min-width: 0; min-height: 0;
+    padding: 0; border: none; border-radius: var(--radius-xs, 3px);
+    background: transparent; box-shadow: none;
+    appearance: none; -webkit-appearance: none;
+    color: var(--icon-color, var(--text-muted));
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .drawio-pagebar .drawio-pagebar-caret svg { width: 12px; height: 12px; }
+
+  .toolwin {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-radius: 8px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    font-size: var(--font-ui-small);
+  }
+  .drawio-toolwin-close.drawio-toolwin-close {
+    width: 20px; height: 20px; padding: 0; border: none;
+    border-radius: var(--radius-xs, 3px);
+    background: transparent; color: var(--text-muted);
+    box-shadow: none; appearance: none; -webkit-appearance: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .drawio-toolwin-close.drawio-toolwin-close:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+  .drawio-layers-icon.drawio-layers-icon {
+    width: 20px; height: 20px; padding: 0; border: none;
+    border-radius: var(--radius-xs, 3px);
+    background: transparent; color: var(--text-muted);
+    box-shadow: none; appearance: none; -webkit-appearance: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .drawio-layers-icon.drawio-layers-icon:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+  .drawio-layers-btn.drawio-layers-btn {
+    width: 26px; height: 24px; padding: 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s, 4px);
+    background: var(--background-primary); color: var(--text-muted);
+    box-shadow: none; appearance: none; -webkit-appearance: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  .drawio-palette-header.drawio-palette-header {
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    padding: 4px 12px; margin-bottom: 4px;
+    border: none; border-radius: var(--radius-s, 4px);
+    background: transparent; color: var(--text-muted);
+    font-size: var(--font-ui-smaller); font-weight: 600;
+    cursor: pointer; box-shadow: none;
+    appearance: none; -webkit-appearance: none;
+  }
+  .drawio-palette-header.drawio-palette-header:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+
+  /* 页面布局 */
+  .demo-title { font-size: 13px; font-weight: 600; margin: 26px 0 8px; letter-spacing: .02em; }
+  .demo-title .tag { font-weight: 500; font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-left: 8px; }
+  .tag-bad { background: rgba(229,62,62,.12); color: #c0392b; }
+  .tag-good { background: rgba(56,161,105,.14); color: #2f855a; }
+  .demo-frame { border: 1px solid var(--background-modifier-border); border-radius: 8px; overflow: hidden; }
+  .toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s, 4px);
+    background: var(--interactive-normal); color: var(--text-normal);
+  }
+  .note { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.6; }
+  .side { max-width: 260px; }
+</style>
+</head>
+<body>
+<button class="toggle" onclick="document.body.classList.toggle('theme-dark')">切换 亮 / 暗</button>
+
+<!-- 图标片段 -->
+<svg style="display:none">
+  <symbol id="i-view" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4.5" width="15" height="15" rx="1.5"/><path d="M9.5 4.5v15"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 0 3-7.7L3 8"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M21 8a9 9 0 1 1-3-7.7L21 8"/></symbol>
+  <symbol id="i-zin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></symbol>
+  <symbol id="i-zout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18"/><path d="M3 16h18"/><path d="M8 3v18"/><path d="M16 3v18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+  <symbol id="i-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M8 12h8"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+</svg>
+
+<!-- ============ 修复前 ============ -->
+<div class="demo-title">修复前 <span class="tag tag-bad">灰底实心方块</span></div>
+<div class="demo-frame demo-before">
+  <div class="drawio-toolbar">
+    <button class="drawio-toolbar-btn drawio-toolbar-viewbtn">
+      <svg width="17" height="17"><use href="#i-view"/></svg>
+      <svg width="10" height="10" class="drawio-toolbar-viewbtn-chev"><use href="#i-chev"/></svg>
+    </button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-undo"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-redo"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-zin"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-zout"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-fit"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-reset"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-trash"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-clear"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-dl"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg width="16" height="16"><use href="#i-save"/></svg></button>
+  </div>
+</div>
+<div class="note">每个按钮都被 Obsidian 的 <code>button:not(.clickable-icon)</code> 刷上了 <code>--interactive-normal</code> 底色 + <code>--input-shadow</code> 内描边。</div>
+
+<!-- ============ 修复后 ============ -->
+<div class="demo-title">修复后 <span class="tag tag-good">透明底 · hover 才显背景</span></div>
+<div class="demo-frame demo-after">
+  <div class="drawio-toolbar">
+    <button class="drawio-toolbar-btn drawio-toolbar-viewbtn">
+      <svg><use href="#i-view"/></svg>
+      <svg class="drawio-toolbar-viewbtn-chev"><use href="#i-chev"/></svg>
+    </button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-undo"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-redo"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-zin"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-zout"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-fit"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-reset"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-trash"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-clear"/></svg></button>
+    <div class="drawio-toolbar-sep"></div>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-dl"/></svg></button>
+    <button class="drawio-toolbar-btn"><svg><use href="#i-save"/></svg></button>
+  </div>
+</div>
+<div class="note">把鼠标移到按钮上试试 —— 默认完全透明，hover 时出现 <code>--background-modifier-hover</code>，和 Obsidian 侧边栏图标按钮一致。</div>
+
+<!-- ============ 同根因的其它按钮 ============ -->
+<div class="demo-title">同一根因一并修好的其它按钮</div>
+<div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
+  <div class="side demo-after">
+    <div class="drawio-palette-header">
+      <span style="width:10px">▾</span><span>通用</span>
+    </div>
+    <div class="note">形状面板分组标题</div>
+  </div>
+  <div class="side demo-after">
+    <div class="toolwin">
+      <span>图层</span>
+      <button class="drawio-layers-icon"><svg width="14" height="14"><use href="#i-eye"/></svg></button>
+      <button class="drawio-layers-icon"><svg width="14" height="14"><use href="#i-lock"/></svg></button>
+      <button class="drawio-layers-btn"><svg width="14" height="14"><use href="#i-plus"/></svg></button>
+      <button class="drawio-toolwin-close"><svg width="14" height="14"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="note">浮动面板：眼睛 / 锁 / 关闭</div>
+  </div>
+  <div class="side demo-after">
+    <div class="drawio-pagebar">
+      <button class="drawio-pagebar-menu"><svg width="16" height="16"><use href="#i-menu"/></svg></button>
+      <div class="drawio-pagebar-tabs">
+        <div class="drawio-pagebar-tab"><span>第1页</span></div>
+        <div class="drawio-pagebar-tab is-active">
+          <span>第2页</span>
+          <button class="drawio-pagebar-caret"><svg><use href="#i-caret"/></svg></button>
+        </div>
+      </div>
+      <button class="drawio-pagebar-add"><svg width="16" height="16"><use href="#i-plus"/></svg></button>
+    </div>
+    <div class="note">底部页面栏</div>
+  </div>
+</div>
+
+</body>
+</html>
