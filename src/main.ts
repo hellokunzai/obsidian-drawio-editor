@@ -1,4 +1,4 @@
-import { Menu, Notice, Plugin, TAbstractFile, TFolder, WorkspaceLeaf, addIcon } from "obsidian";
+import { Menu, Notice, Plugin, TAbstractFile, TFile, TFolder, WorkspaceLeaf, addIcon } from "obsidian";
 import { DrawioView, VIEW_TYPE_DRAWIO, DRAWIO_ICON_ID } from "./DrawioView";
 import { DrawioSettingTab } from "./settings-tab";
 import {
@@ -18,6 +18,14 @@ import { t } from "./i18n";
 /** 流程图图标（两框一连线），用于标签页 / 菜单 */
 const DRAWIO_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="9" height="6" rx="1"/><rect x="13" y="15.5" width="9" height="6" rx="1"/><path d="M6.5 8.5v6a3 3 0 0 0 3 3h3.5"/></svg>`;
 
+/**
+ * 扩展名不在注册表里、但内容通常是 draw.io 图表的文件。
+ * 复合后缀 .drawio.svg 要按文件名判断：TFile.extension 只会给出 svg。
+ */
+function isDrawioCompatible(file: TFile): boolean {
+  return file.extension === "xml" || file.name.toLowerCase().endsWith(".drawio.svg");
+}
+
 export default class DrawioPlugin extends Plugin {
   settings!: DrawioSettings;
 
@@ -34,9 +42,17 @@ export default class DrawioPlugin extends Plugin {
     // Register the custom view for .drawio files
     this.registerView(VIEW_TYPE_DRAWIO, (leaf: WorkspaceLeaf) => new DrawioView(leaf, this));
 
-    // Register .drawio file extension
-    // Obsidian will use our view to open files with this extension
-    this.registerExtensions(["drawio", "drawio.svg", "xml"], VIEW_TYPE_DRAWIO);
+    // 只注册本插件独有的 .drawio。
+    //
+    // 两点原因：
+    // ① ViewRegistry.registerExtensions 会先对整个数组做冲突预检，任一扩展名已被
+    //    别的插件占用就直接 throw，而 Plugin.registerExtensions 不捕获 —— 数组里
+    //    放一个通用后缀（如 xml）会让 drawio 也一起注册不上、onload 直接抛错；
+    // ② "drawio.svg" 这类复合扩展名永远命不中：TFile.extension 只取最后一个点之后
+    //    的片段，x.drawio.svg 的 extension 是 svg，而 openFile 是纯字典查表。
+    //
+    // 通用后缀改由文件菜单显式打开（见下面的 file-menu 分支）。
+    this.registerExtensions(["drawio"], VIEW_TYPE_DRAWIO);
 
     // Add command to create new diagram (command palette entry point)
     this.addCommand({
@@ -60,6 +76,19 @@ export default class DrawioPlugin extends Plugin {
               void this.createNewDiagram(folder, t("file.newFlowchart"));
             })
         );
+
+        // .xml / x.drawio.svg 这类通用或复合后缀抢不得（见上面 registerExtensions 的说明），
+        // 改成在文件列表里显式「以流程图打开」。
+        if (file instanceof TFile && isDrawioCompatible(file)) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t("file.openAsDiagram"))
+              .setIcon(DRAWIO_ICON_ID)
+              .onClick(() => {
+                void this.openInDrawioView(file);
+              })
+          );
+        }
       })
     );
 
@@ -75,9 +104,6 @@ export default class DrawioPlugin extends Plugin {
         }
       })
     );
-  }
-
-  async onunload(): Promise<void> {
   }
 
   /**
@@ -97,6 +123,21 @@ export default class DrawioPlugin extends Plugin {
     } catch (err) {
       console.error("Error creating diagram:", err);
       new Notice(t("notice.createFailed") + (err as Error).message);
+    }
+  }
+
+  /** 用流程图视图打开一个非 .drawio 后缀的文件（.xml / x.drawio.svg） */
+  async openInDrawioView(file: TFile): Promise<void> {
+    try {
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.setViewState({
+        type: VIEW_TYPE_DRAWIO,
+        active: true,
+        state: { file: file.path },
+      });
+    } catch (err) {
+      console.error("Error opening file as diagram:", err);
+      new Notice(t("notice.openFailed") + (err as Error).message);
     }
   }
 

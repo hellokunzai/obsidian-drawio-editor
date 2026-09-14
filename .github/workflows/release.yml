@@ -1,0 +1,105 @@
+name: Release
+
+# 两条发版路径：
+#   1) 推 tag（tag 名 = manifest.json 的 version，不加 v 前缀）
+#   2) 手动触发，填版本号，由 workflow 自己打 tag
+# 两条路都只做一件事：构建 + 创建 GitHub Release（附三件套资产）。
+on:
+  push:
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "要发布的版本号，须与 manifest.json 一致（不带 v 前缀，例如 0.17.3）"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 需要完整历史，--generate-notes 才能算出上一个 tag 到本次的变更
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Resolve version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            VERSION="${DISPATCH_VERSION}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          # 容错：即使手滑带了 v 前缀也剥掉（Obsidian 的 tag 不带 v）
+          VERSION="${VERSION#v}"
+          if [ -z "${VERSION}" ]; then
+            echo "::error::未能解析出版本号"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "准备发布 ${VERSION}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 提前守门：版本号对不上就直接失败，避免发出一个坏 Release
+      - name: Check version consistency
+        run: node .github/scripts/check-version.mjs --tag "${{ steps.version.outputs.version }}"
+
+      - name: Type check
+        run: node node_modules/typescript/bin/tsc -noEmit -skipLibCheck
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          for f in main.js manifest.json styles.css; do
+            if [ ! -f "$f" ]; then
+              echo "::error::缺少 Release 资产 $f"
+              exit 1
+            fi
+          done
+          ls -lh main.js manifest.json styles.css
+
+      # 手动触发时 tag 还不存在，补一个（指向本次 checkout 到的提交）
+      - name: Create tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$(git tag -l "${VERSION}")" = "${VERSION}" ]; then
+            echo "tag ${VERSION} 已存在，跳过创建"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "${VERSION}"
+            git push origin "${VERSION}"
+          fi
+
+      # 注意：不要加 --draft，否则 Release 是草稿，Obsidian 市场抓不到
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "${VERSION}" \
+            main.js \
+            manifest.json \
+            styles.css \
+            --title "${VERSION}" \
+            --generate-notes

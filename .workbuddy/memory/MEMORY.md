@@ -1,154 +1,90 @@
 # 项目记忆
 
-> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`）。当前 v0.17.2。
-> 跨会话成立的事实与踩坑结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
+> Obsidian 插件 obsidian-drawio-editor（id: `drawio-editor`），当前 v0.18.0。
+> 只记跨会话成立的事实与结论；逐次改动见 `.workbuddy/memory/YYYY-MM-DD.md`。
+> 通用方法（按钮特异性 / 图标取证 / 截图解码等）已在 skill `obsidian-plugin-dev`，此处只留项目特有结论。
 
-## 编辑纪律（吃过两次亏）
-- **同一文件的多次 Edit 必须串行**：一条消息里发两条 Edit 到同一文件，后写入的会**整条冲掉**前一条，
-  而工具两次都回 success。v0.16.4、v0.17.1 各踩一次（都是靠收尾校验脚本才发现）。跨文件批量没问题。
-- 改完关键文件**Read 回读确认**，别信 success 回执。
-- **校验脚本报错时，先怀疑断言本身，别急着改代码。** v0.17.2 两条 ❌ 全是检查脚本写错：
-  ① 拿 `<span>不透明度</span>` 匹配，而原型的 span 带 class（`<span class="…">`）；
-  ② 尾切片从「最后一个目标元素」切到文件末尾，把下方说明块里的同名文字也算了进去。
-  写断言时优先用「只可能出现在目标位置」的锚点，或先把说明/文档区域切掉再匹配。
+## 编辑纪律
+- **同一文件的多次 Edit 必须串行**：一条消息里两条 Edit 到同一文件，后写会整条冲掉前一条，而工具两次都回 success（v0.16.4 / v0.17.1 各踩一次）。跨文件批量无此问题。改完关键文件 Read 回读确认，别信 success 回执。
+- **校验脚本报错先怀疑断言本身**：v0.17.2 两条 ❌ 全是脚本写错——拿 `<span>不透明度</span>` 匹配带 class 的原型；尾切片把下方说明块里的同名文字也算进去。断言要用「只可能出现在目标位置」的锚点，或先切掉说明区。
 
 ## 技术栈与工作流
-- TypeScript + esbuild，依赖 mxgraph 4.2.2（`src/mxClient.min.js`，打包进产物）+ pako。
-- 改完代码必须：跑 tsc → 跑 esbuild 生产构建 → 同步升三处版本号（manifest.json / package.json / versions.json）。
-- 用户自行把构建产物（main.js / styles.css / manifest.json）拷进 vault；未经明确要求不 `git commit`。
+- TypeScript + esbuild；mxgraph 4.2.2（`src/mxClient.min.js` 经 raw-loader 内联进产物）+ pako。
+- 改完必须：跑 tsc → 跑 esbuild 生产构建（`node esbuild.config.mjs --production`，**该脚本不含 tsc**）→ 同步升三处版本号（manifest.json / package.json / versions.json）。
+- 用户自己把 main.js / styles.css / manifest.json 拷进 vault；未经明确要求不 `git commit`。
+- remote `git@github.com:hellokunzai/obsidian-drawio-editor.git`，默认分支 main。
 
-## 本机构建 / 校验
-- 用 Bash + 托管 node 绝对路径，PATH 里没有 npm/npx：
-  - 类型检查：`"C:/Users/hellokunzai/.workbuddy/binaries/node/versions/22.22.2-3/node.exe" node_modules/typescript/bin/tsc -noEmit -skipLibCheck`
-  - 构建：`".../node.exe" esbuild.config.mjs --production`
-- Bash 缺 `dirname/head/tail/ls/wc/git` 等命令，但 node/python 本身正常返回 exit code。
-- **`rm` / `rm -rf` 是被 shim 挡住的**（内部 `dirname: command not found` → 退出 127）。
-  写 `rm -rf x && 真正的命令` 会**在 rm 处短路**，真正的命令根本没跑，却很容易被误读成「那个命令不支持」。
-  要删目录用 python `shutil.rmtree`，或者干脆换个新的临时目录名。
-- **无头截图是可用的**（别再信以前「本机截不了图」的结论，那次失败的真因就是上面的 `rm` 短路）：
-  ```
-  "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new --no-sandbox \
-    --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --hide-scrollbars \
-    --force-device-scale-factor=2 --user-data-dir=<新的临时目录> --virtual-time-budget=6000 \
-    --window-size=1060,620 --screenshot=<绝对路径>.png "file:///<绝对路径>.html"
-  ```
-  `--force-device-scale-factor=2` 拿到 2x 图，逐像素量 CSS 尺寸时除以 2；日志用 `> log 2>&1` 收（成功时会打印
-  `NNN bytes written to file`）。量的时候**探针 x 必须落在侧栏内部**（落在列间隙上会一条线都扫不到），
-  且**窗口宽度要让所有对照列排在同一行**（否则换行的列与上一列同 x、量出来的 bbox 会混）。
-- 校验中文文案：esbuild minify 把非 ASCII 转义，**U+0080~U+00FF 用 `\xHH`（如 `·` → `\xB7`），
-  更靠后的才用 `\uXXXX`**。只反转义 `\uXXXX` 会把「已打进产物」的文案误判成缺失。
-  两种都要换：`main.js.replace(/\\u([0-9a-fA-F]{4})/g, …).replace(/\\x([0-9a-fA-F]{2})/g, …)` 再 `includes()`。
-- 看截图取证：无 PIL，纯 `python` + `zlib` 手写 PNG 解码（filter 0~4 逐行还原）即可，
-  不必额外装 pillow。脚本见 `.workbuddy/tmp/`（`ascii.py` 出 ASCII 结构图、`map.py` 带坐标刻度、
-  `measure-*.py` 量尺寸/间距）。
+## 本机构建 / 校验（沙箱环境）
+- PATH 无 npm/npx，用 Bash + 托管 node 绝对路径 `C:/Users/hellokunzai/.workbuddy/binaries/node/versions/22.22.2-3/node.exe`。Bash 缺 `dirname/head/tail/ls/wc/git`；node/python 本身正常返回 exit code。
+- **`rm` / `rm -rf` 被 shim 挡住**（退出 127）。`rm -rf x && 真命令` 会在 rm 处短路，真命令根本没跑，极易被误判成「那个命令不支持」。删目录用 python `shutil.rmtree`，或换个新临时目录名。
+- **无头截图可用**（Edge）：`msedge.exe --headless=new --no-sandbox --disable-gpu --force-device-scale-factor=2 --user-data-dir=<新临时目录> --virtual-time-budget=6000 --window-size=1060,620 --screenshot=<绝对路径>.png "file:///<绝对路径>.html"`。2x 图，量 CSS 尺寸除以 2；日志 `> log 2>&1`（成功会打印 `NNN bytes written to file`）。探测时 x 必须落在目标内部，且窗口宽度要让对照列排在同一行。
+- 校验中文文案：minify 把非 ASCII 转义，**U+0080~U+00FF 走 `\xHH`（`·`→`\xB7`），更靠后的走 `\uXXXX`**；两种都要反转义再 `includes()`，否则会把已打进产物的文案误判成缺失。
+- 看截图取证：无 PIL，纯 python + zlib 手写 PNG 解码（filter 0~4 逐行还原）即可；脚本在 `.workbuddy/tmp/`（ascii.py / map.py / measure-*.py）。
 
 ## CSS 铁律
-- 上色用具体 hex / rgba（draw.io 蓝 `#167dff` + `rgba(22,125,255,0.12)`），不要依赖 `var(--interactive-accent)` / `color-mix`（Electron 作用域可能失效）。
-- 覆盖 mxClient 默认类（如 `.mxRubberband`）务必补 `position: absolute`、`pointer-events: none`。
-- 覆盖 Obsidian 自带规则注意特异性，别指望加载顺序。
-- **给插件自绘 `<button>` 定样式时，单个类名 (0,1,0) 一定不够。** Obsidian app.css 里有
-  `button:not(.clickable-icon) { color: var(--text-color); background-color: var(--interactive-normal); box-shadow: var(--input-shadow); }`
-  ＝ (0,1,1)，会整条盖掉你的「透明底」。表现就是按钮变成「主题灰底 + 1px 内描边实心方块」。
-  双保险：① 选择器提权到 (0,2,0)——祖先层级稳定的用父级前缀（`.drawio-pagebar .drawio-pagebar-menu`），
-  挂 body 且可拖动的浮动面板用**重复类名**（`.drawio-layers-btn.drawio-layers-btn`）；
-  ② 给按钮挂 Obsidian 自己的 `clickable-icon` 类，让那条规则直接不匹配（顺带白拿 ribbon 的 `--icon-color` + `--icon-opacity` 观感）。
-  `<div>` 造的「按钮」没有这个问题，只有真 `<button>` 会。
-- **这个坑永远是一片不是一个：改完必须跑全量扫描。** 点对点修已被证伪三次（先漏工具栏 12 个，
-  再漏全仓 11 个类，又漏掉右侧面板整个 `drawio-fmt-*` 家族 7 个类）。
-  现成脚本（通用，项目根跑，退出码 0 = 通过）：
-  `node C:/Users/hellokunzai/.workbuddy/skills/obsidian-plugin-dev/scripts/scan-button-specificity.js`
-- **扫描必须覆盖项目里所有建按钮的写法，只扫 `createEl("button")` 必漏。** 本仓有两套：
-  Obsidian 封装 `createEl("button", {cls})`（DrawioView / PageBar / 各浮动面板）和
-  本地 helper `h("button", "cls", text)`（`DrawPanel.ts` / `FormatPanel.ts`，内部是 `document.createElement`）。
-  新增 UI 文件时先确认它属于哪一套。
-- 注意 Obsidian 的默认规则**只设 `background-color / color / box-shadow`，不设 `border`**。
-  所以插件自己写的 `border: 1px solid …` 是会生效的 → 渲染成「主题灰底 + 一圈硬边框 + 内描边」三重 chrome。
-  改用原生按钮皮时（面板类按钮）要显式补 `border: none; box-shadow: none; appearance: none;`，
-  底色用 `--interactive-normal` → hover `--interactive-hover` → 按下 `--background-modifier-active-hover`。
-  纯图标按钮走另一套：`--icon-color` / `--icon-opacity` / `--background-modifier-hover`。
-- 判断该「提权保留原设计」还是「改成原生按钮皮」：看原始规则**有没有显式写 `background` / `border`**。
-  写了 = 有设计意图，提权保留（查找/图层/标签/弹窗按钮）；没写 = 本想透明/无框，提权后要显式补透明。
-- `clickable-icon` 只给**纯图标按钮**挂；文字按钮不要挂（那是图标专用类，会带来 `padding` 与 `--icon-color`）。
-- 提权后**基础类会压过自己的组合类**（`.btn` 提到 (0,2,0) 后 `.btn-text` 的 (0,1,0) 失效），
-  组合类要一起提权；`:hover` / `.is-active` 本身算 (0,2,0)，与提权后的基础规则同分，**必须写在后面**。
-- 提权是「把控制权还给按钮自己」，不是「统一刷成透明」：有边框有底色的按钮（查找、图层、标签、弹窗）
-  提权后应保持各自的 `--background-primary` + 1px 边框。
-- 排查手法：`%APPDATA%\obsidian\obsidian-<版本>.asar` 可以直接当 latin1 字符串读，
-  正则 `/([^{}\n]{0,200}button[^{}\n]{0,120})\{([^{}]{0,500}interactive-normal[^{}]{0,300})\}/g` 能捞出原文，
-  比猜主题快得多（asar 头部就是 JSON，app.css 明文在里面）。
-- 主题取色可从截图反推：本项目用户用 **Catppuccin（Latte/Mocha）** —— base `#eff1f5` / mantle `#e6e9ef` /
-  surface0 `#ccd0da` / text `#4c4f69` / overlay 系 `#6c6f85`。截图里出现这几个值基本就能确定主题。
-- 无 PIL 时看截图：纯 `python -c` + `zlib` 手写 PNG 解码（filter type 0~4 逐行还原），
-  做「按色距离分类的 ASCII 图」+ 逐像素扫描，足够判断按钮有没有底色/描边、边界落在哪个 x。
-- 写「修复前 / 修复后」对照原型（`prototypes/*.html`）的三个硬要求：
-  ① 必须把 `button:not(.clickable-icon)` 那条规则**抄进原型的 `<style>`**，否则左侧看起来是好的；
-  ② 用 `.before :where(.my-btn) { 原始声明 }` 给左侧**还原真实特异性 (0,1,0)** ——
-  直接写 `.before .my-btn` 会抬到 (0,2,0) 反而压过 Obsidian 规则，左侧就坏不掉了。
-  组合类要写成 `:where(.my-btn).active`（`:where()` 会把参数内全部特异性归零）。
-  ③ **对照的重点是什么，就让两边只差那一件事**：v0.16.8 比的是图标，两边就都挂 `clickable-icon`
-  （与真机一致）让 Obsidian 规则不参与；若这时还硬套 ② 把左侧弄坏，重点就跑偏了。
+- 上色用具体 hex / rgba（draw.io 蓝 `#167dff` + `rgba(22,125,255,0.12)`），别依赖 `var(--interactive-accent)` / `color-mix`。覆盖 mxClient 默认类（如 `.mxRubberband`）要补 `position:absolute; pointer-events:none`。
+- **自绘 `<button>` 单类名 (0,1,0) 必被 Obsidian `button:not(.clickable-icon)`（(0,1,1)）压成「主题灰底实心方块」。** 双保险：① 提权到 (0,2,0)（祖先稳定用父级前缀，挂 body 的浮动面板用重复类名）；② 挂 `clickable-icon` 让它直接不匹配。`clickable-icon` 只给纯图标按钮挂。
+- **这个坑永远是一片不是一个：改完必须跑全量扫描**（点对点修已被证伪三次）：
+  `node C:/Users/hellokunzai/.workbuddy/skills/obsidian-plugin-dev/scripts/scan-button-specificity.js`（项目根跑，退出码 0 才算过）。本仓有**两套**建按钮写法，扫描必须全覆盖：Obsidian 封装 `createEl("button", {cls})` 与本地 helper `h("button", "cls", text)`（DrawPanel.ts / FormatPanel.ts）。新增 UI 文件先确认属于哪套。
+- Obsidian 默认规则只设 `background-color / color / box-shadow`，**不设 border**，自写的 `border` 会生效 → 灰底 + 硬边框 + 内描边三重 chrome。改原生按钮皮须显式 `border:none; box-shadow:none; appearance:none;`；纯图标按钮走 `--icon-color` / `--icon-opacity`。
+- 判「提权保留原设计」还是「改原生皮」：看原规则有没有显式写 `background` / `border`。提权后基础类会压过自己的组合类（`.btn-text` 要一起提权）；`:hover` / `.is-active` (0,2,0) 必须写在基础规则之后。
+- 排查手法：`%APPDATA%\obsidian\obsidian-<版本>.asar` 当 latin1 字符串读，正则 `/([^{}\n]{0,200}button[^{}\n]{0,120})\{([^{}]{0,500}interactive-normal[^{}]{0,300})\}/g` 捞原文。
+- 主题反推：用户用 **Catppuccin（Latte/Mocha）**——base `#eff1f5` / mantle `#e6e9ef` / surface0 `#ccd0da` / text `#4c4f69` / overlay `#6c6f85`。
+- 写「修复前/后」对照原型三要求：① 把 `button:not(.clickable-icon)` 抄进原型 `<style>`；② 用 `.before :where(.my-btn)` 还原真实 (0,1,0)（组合类写 `:where(.my-btn).active`）；③ **对照的重点是什么，就让两边只差那一件事**（比图标时两边都挂 `clickable-icon`）。
+- 原型里要**钉死列宽**（`.boards > div { width:306px }`），并让控件细节照抄真相（色块 `flex-shrink:0`、`.drawio-fmt-select` 才 `flex:1`、数字框自然宽）。
 
 ## 图标体系（v0.16.8 起）
-- 工具栏图标集中在 `DrawioView.ts#getIconDef()`，返回 `IconDef { svg, filled?, viewBox? }`；
-  `renderIcon()` 据 `filled` 输出 `fill="currentColor" stroke="none"` 或描边渲染。
-- **实心图标的 viewBox 必须紧贴字形**：字形扁（如 undo/redo 是 2.27:1）时，塞进 24×24 方框会被
-  `meet` 缩成细线。undo `1.9 6.9 20.7 9.2` / redo `1.4 6.9 20.8 9.2`（Material filled `undo`/`redo`）。
-  校验手法：用 node 走一遍 path 命令（M/L/H/V/C，绝对+相对）算字形包围盒，和 viewBox 比「未裁切 + 紧贴」。
-- **内联 `<svg width/height>` 会被 CSS 静默覆盖**：`.drawio-toolbar .drawio-toolbar-btn > svg { width:16px }`
-  赢过 presentation attribute。图标尺寸只保留 CSS 一处，`renderIcon()` 不输出 width/height。
-- 撤销 / 重做按 `undoManager.canUndo()/canRedo()` 置灰（`refreshUndoRedoState()`；调用点见当日日志）。
-  置灰 CSS 要连 `:hover` / `:active` 一起覆盖（(0,3,0)），并保留 pointer-events 让 tooltip 还在。
-- 从用户截图复刻图标的取证法（不靠猜）：python+zlib 手写 PNG 解码 → 逐像素 ASCII，看**字形包围盒、
-  宽高比、有没有竖直的实心边、弧线甩向**，据此判定属于哪个图标族（本项目是 Material Design）。
+- 工具栏图标集中在 `DrawioView.ts#getIconDef()` → `IconDef { svg, filled?, viewBox? }`；`renderIcon()` 据 `filled` 出 `fill="currentColor" stroke="none"` 或描边。
+- **实心图标 viewBox 必须紧贴字形**：扁字形（undo/redo 2.27:1）塞进 24×24 会被 `meet` 缩成细线。undo `1.9 6.9 20.7 9.2` / redo `1.4 6.9 20.8 9.2`（Material filled）。用 `verify-icon-viewbox.js` 校验「未裁切 + 紧贴」。
+- **内联 `<svg width/height>` 会被 CSS 静默覆盖**：图标尺寸只在 CSS 一处定义，`renderIcon()` 不输出 width/height。
+- 撤销/重做按 `undoManager.canUndo()/canRedo()` 置灰（`refreshUndoRedoState()`）。置灰 CSS 要连 `:hover` / `:active` 一起覆盖 (0,3,0)，保留 pointer-events 让 tooltip 还在。
+- 复刻用户截图图标的取证法：python+zlib 逐像素 ASCII，看字形包围盒 / 宽高比 / 有无竖直实心边 / 弧线甩向 → 判定图标族（本项目 Material Design）。
 
 ## 视图铺满叶子
-- Obsidian `.workspace-leaf-content .view-content` 默认有 padding（尤其下 32px），插件容器 `height:100%` 只拿到内容盒高度 → 四周露白。
-- 修法（已在 styles.css）：`(0,3,0)` 选择器把内边距清零、overflow 改 hidden。
+- `.workspace-leaf-content .view-content` 默认有 padding（尤其下 32px），容器 `height:100%` 只拿到内容盒 → 四周露白。styles.css 用 (0,3,0) 选择器清零内边距、overflow 改 hidden。
 
 ## mxGraph 坐标语义
 - `state.x/y/width/height` 是**容器像素坐标**：`state.x = scale*(translate.x + origin.x)`。
-- `getCellAt` / `getCells` / `mxUtils.intersects(rect, state)` / 框选矩形，入参一律是容器像素。
-- 只有需要图坐标（给 `insertVertex` 用）才换算：`graphX = px/scale - translate.x`，等价 `graph.getPointForEvent(evt)`。
+- `getCellAt` / `getCells` / `mxUtils.intersects(rect, state)` / 框选矩形入参一律是容器像素。
+- 只有给 `insertVertex` 用的图坐标才换算：`graphX = px/scale - translate.x`（等价 `graph.getPointForEvent(evt)`）。
 - clientX/clientY → 容器像素用 `mxUtils.convertPoint(container, clientX, clientY)`。
 
 ## 图形分组
-- v0.16.2 起形状面板分组统一为：便笺本（Scratchpad）、通用（General）、杂项（Misc）、高级（Advanced）。
-- 分组定义在 `src/shapes.ts#getAllShapeCategories()`；标题翻译在 `src/i18n/index.ts`。
-- 便笺本内容为动态收藏，渲染逻辑在 `src/DrawioView.ts`。
+- v0.16.2 起形状面板分组：便笺本（Scratchpad）、通用（General）、杂项（Misc）、高级（Advanced）。
+- 定义在 `src/shapes.ts#getAllShapeCategories()`，标题翻译在 `src/i18n/index.ts`；便笺本为动态收藏，渲染在 `src/DrawioView.ts`。
 
 ## 样式面板配色轮播（v0.17.0 起）
-- 「样式」Tab 顶部 = 6 页 × 8 块 = **48 组 draw.io 官方配色**，定义在 `src/FormatPanel.ts#STYLE_PRESET_PAGES`，
-  `StylePreset = { fill, stroke, gradient?, noFill? }`，每页 8 块（`STYLE_PRESET_PER_PAGE`）。
-- 这些色值是**从用户给的 draw.io 截图逐像素还原**的（python + zlib 手写 PNG 解码 → 连通域 + 梯度最小二乘；
-  脚本留在 `.workbuddy/tmp/extract_palette2.py` / `fit.py`）。要改配色，先跑
-  `.workbuddy/tmp/verify-palette.js` —— 它会把源码里的数组抠出来跟期望表逐字段比对，防手抄错。
-- 第 4 页第 2 块是**无填充**（棋盘格）；**第 5 页是渐变组**（`fillColor` 在上、`gradientColor` 在下 = `south`）。
-  draw.io 的渐变块实测 H 方向恒定、V 方向线性，端点靠外推拟合得到。
-- 色块画法 = 填充色打底 + 1px「描边色」边框（不是旧版的对角双色）；`aspect-ratio: 1.5`（参考图 45×30）。
-- 箭头**循环翻页**（首/末页不变暗，说明参考图不是 disabled）；圆点可点跳页。
-- `matchStylePreset()` 的坑：#ffffff/#000000 在 5 页里重复，**必须先扫当前可见页再回退全局首个**，
-  否则每次选中都无谓跳页。页内 8 组无重复。
-- 点「纯色预设」要**显式清掉 gradientColor**，否则样式对不上、高亮永远命不中。
-- **v0.17.1 / v0.17.2：样式 Tab 的三组（填充 / 线条 / 效果）都不是分区，是一条分割线。**
-  三组都走 `FormatPanel#flatSection()`（`.drawio-fmt-flat` > `.drawio-fmt-divider` + 内容，无标题栏、不可折叠）。
-  `section()` 仍被**文本 / 排列**面板的 4 个分组用着，不能删。
-  「线条」二字仍在下行勾选框标签上；**「效果」二字只能靠 `role="group"` + `aria-label` 保留语义**
-  （组内 4 个勾选框没有同名字样，标题栏一去掉就彻底不可见）。
-- 分割线间距：**上 11px / 下 10px**。基础 `.drawio-fmt-divider` 仍是 `margin: 12px 0`（文本/排列面板依赖它），
-  扁平组用 `.drawio-fmt-flat > .drawio-fmt-divider` (0,2,0) 覆盖。
-  **首组必须再清零 margin-top**：`.drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider { margin-top: 0 }` (0,3,0)，
-  否则 palette 的 `margin-bottom: 11px` 和新加的 `margin-top: 11px` 叠成 22px，第一条线明显比后两条宽。
-- **`不透明度` 这一行属于「线条」组，必须放在 `flatSection` 回调内部。** 挂在组外时它会命中
-  `.drawio-fmt-row:last-child { margin-bottom: 0 }` 和上一组贴死（旧版正是靠分区的 `border-bottom` 当分隔，
-  实测「不透明度盒顶距那条线仅 1.5px」）。放进组内让 `row2` 不再是末行，10px 行距自动回来。
-- 命名别用 `.drawio-fmt-group*` —— 仓库里已有语义不同的 `.drawio-fmt-group-title` / `-body`。
-- 真机渲染实测（2x 无头截图）：色块含边框 46.5×31.0 = **1.500**（证明 `aspect-ratio` 在 `<button>`
-  上生效、没被主题 `button { height }` 破坏）、圆点 9×9、分割线左右各内缩 12px（与分区 border 起止重合）。
-  v0.17.2 复量三条分割线的「上距/下距」= 11.0/11.5、12.0/10.5、12.0/12.5，且**首条与 v0.17.1 那条完全相同**
-  → 证明 margin-top 归零的覆盖真的生效（没有叠成 22px）。
-- 原型 `prototypes/style-palette-carousel.html` 现在是**两列**（② 现状 ③ 本次），渲染图
-  `prototypes/style-palette-carousel.png`；两列共用同一份 CSS，只差「标题栏 vs 分割线」这一件事。
-  写这类原型时：① **把列宽钉死**（`.boards > div { width: 306px }`），否则 `.cap` 的长标题会把 flex 项撑宽、
-  两列对不齐，量间距时 x 窗口会取错、得到一堆自相矛盾的数；② **控件细节也要照抄真相**：
-  色块是 `flex-shrink: 0`（紧跟文字，`margin-left: auto` 是错的）、`.drawio-fmt-select` 才是 `flex: 1`、
-  数字框 `.drawio-fmt-number` 是自然宽（不拉伸）。
+- 「样式」Tab 顶部 = 6 页 × 8 块 = 48 组 draw.io 官方配色，`src/FormatPanel.ts#STYLE_PRESET_PAGES`，`StylePreset = { fill, stroke, gradient?, noFill? }`；每页 8 块（`STYLE_PRESET_PER_PAGE`）。
+- 色值由用户 draw.io 截图逐像素还原（脚本 `.workbuddy/tmp/extract_palette2.py` / `fit.py`）。改配色先跑 `.workbuddy/tmp/verify-palette.js` 逐字段比对。
+- 第 4 页第 2 块是**无填充**（棋盘格）；**第 5 页是渐变组**（fillColor 在上、gradientColor 在下 = `south`，实测 H 恒定 / V 线性）。色块 = 填充色 + 1px 描边色边框，`aspect-ratio: 1.5`（参考 45×30）；箭头**循环翻页**（首/末页不变暗），圆点可点跳页。
+- `matchStylePreset()` 坑：#ffffff/#000000 在 5 页重复，**必须先扫当前可见页再回退全局首个**。点纯色预设要**显式清掉 gradientColor**，否则高亮永远命不中。
+- **v0.17.1 / v0.17.2：填充 / 线条 / 效果三组都不是分区，是一条分割线**，走 `FormatPanel#flatSection()`（`.drawio-fmt-flat` > `.drawio-fmt-divider` + 内容，无标题、不可折叠）。`section()` 仍被文本 / 排列面板的 4 个分组用着，不能删。命名别用 `.drawio-fmt-group*`——仓库已有语义不同的 `.drawio-fmt-group-title` / `-body`。
+- 「线条」二字仍在下行勾选框标签上；**「效果」二字只能靠 `role="group"` + `aria-label` 保留语义**（组内没有同名字样，去掉标题栏就彻底不可见）。
+- 分割线间距 **上 11px / 下 10px**。基础 `.drawio-fmt-divider` 仍 `margin:12px 0`（文本/排列依赖）；扁平组用 `.drawio-fmt-flat > .drawio-fmt-divider` (0,2,0) 覆盖；**首组还要清零 margin-top**：`.drawio-fmt-palette + .drawio-fmt-flat > .drawio-fmt-divider { margin-top:0 }` (0,3,0)，否则与 palette 的 11px 叠成 22px。
+- **「不透明度」这一行属于「线条」组，必须放进 `flatSection` 回调内部**；挂组外会命中 `.drawio-fmt-row:last-child { margin-bottom:0 }` 与上一组贴死。
+- 真机 2x 截图实测：色块含边框 46.5×31.0 = **1.500**、圆点 9×9、分割线左右各内缩 12px；v0.17.2 三条线上下距 11.0/11.5、12.0/10.5、12.0/12.5（首条与 v0.17.1 那条完全相同，证明 margin-top 归零生效）。
+- 原型 `prototypes/style-palette-carousel.html`（两列：② 现状 ③ 本次），图 `prototypes/style-palette-carousel.png`；两列共用同一份 CSS，只差「标题栏 vs 分割线」。
+
+## 上架合规（v0.18.0 已修代码级问题，2026-09-14）
+- **v0.17.2 检查发现 → v0.18.0 已全部修复**（代码级）：
+  - `registerExtensions(["drawio"])` 只留一个（原 `["drawio","drawio.svg","xml"]` 会因数组冲突预检连坐）；`.xml` / `.drawio.svg` 改用右键 `file-menu`「Open as diagram」兜底（`isDrawioCompatible` + `openInDrawioView`）。
+  - `window.mxStylesheetCodec.allowEval=false` + `mxDefaultToolbarCodec.allowEval=false`（`mxgraph-setup.ts`）。
+  - **18 处 `innerHTML` + 2 处 `outerHTML` 读 全部迁到 `src/svg.ts#setSvgMarkup()`** = `el.replaceChildren(sanitizeHTMLToDom(markup))`；`outerHTML` 读改 `mxUtils().getXml(value)`。
+  - `console.log` 删；`author` 填 `hellokunzai`；`vault.modify`→`vault.process`；`createElement("script")`→`createEl`；`arguments`→rest；`setTimeout`→`window.*`（连带 `saveTimeout` 类型改 `number`）。
+  - 官方 eslint recommended：errors 1637→**1609**、warnings 206→**175**；`no-inner-html` 17→0、`no-unsanitized/property` 14→0。
+- **仍未做（唯一阻断项，属发布动作，需用户确认）**：仓库**无 tag / 无 Release**，`.github/`（4 个 workflow）**仍未提交**。过审前提是「至少一个 Release 带三件套」→ 需 `git add .github/` + commit + `git tag 0.18.0` + 首个 `gh release create`。**用户未说 commit / 发布前不动手。**
+- **故意保留**（超范围 / 大改有回归风险）：`no-static-styles-assignment` 34 处、本地 `h()` helper 的 `prefer-create-el` 2 处、`settings-tab/prefer-setting-definitions` 1 处、`@typescript-eslint` 的 `any` 警告约 1500 条（mxGraph 按设计 `any` 密集）。
+- 完整检查报告：`.workbuddy/tmp/compliance-report.html`。
+
+## 安全改造：`innerHTML` → `setSvgMarkup`（v0.18.0 起，已全量落地）
+- 新增 **`src/svg.ts`**：`setSvgMarkup(el, markup)` = 有串走 `el.replaceChildren(sanitizeHTMLToDom(markup))`，空串走 `el.replaceChildren()`。
+- **`sanitizeHTMLToDom` 是 Obsidian 对 DOMPurify 的封装**（`FORBID_TAGS:["style"]`、`RETURN_DOM_FRAGMENT:true`），**对 SVG 完全保真**：无头 Edge 实测 11 个代表图形（多 `<svg>` 按钮 / `stroke-dasharray` / 紧 `viewBox` / `fill="currentColor"` / `class` 属性）属性全保留、命名空间仍是 `http://www.w3.org/2000/svg`，只有自闭合标签序列化形式不同（DOM 等价）→ 零视觉回归。
+- 官方红线**点名的是 `innerHTML`/`outerHTML`/`insertAdjacentHTML`，不是 `eval`/`new Function`**（旧 skill 红线表写错了）。
+
+
+## Obsidian 客户端语义（反编译 `%APPDATA%/obsidian/obsidian-<ver>.asar` 实证，1.13.7）
+- **`TFile.extension` = 最后一个点之后的片段（转小写）**；`openFile` 用 `getTypeByExtension(extension)` **纯字典查表**。
+  → 复合扩展名（`x.drawio.svg`）的 extension 是 `svg`，**注册 `"drawio.svg"` 永远不生效**。
+- **`ViewRegistry.registerExtensions` 先对整个数组冲突预检，任一已存在即 `throw`；`Plugin.registerExtensions` 不捕获** → 数组里放一个会冲突的扩展名，**全部注册失败、`onload` 抛错**。
+- 核心已占用扩展名（1.13.7）：`md`；`bmp,png,jpg,jpeg,gif,svg,webp,avif`；`mp3,wav,m4a,3gp,flac,ogg,oga,opus`；`mp4,webm,ogv,mov,mkv`；`pdf`。
+- **mxGraph 4.2.2 默认 `allowEval`**：`mxStencil` / `mxGraphView.prototype` / `mxObjectCodec` = `false`，但 **`mxStylesheetCodec` / `mxDefaultToolbarCodec` = `true`** → `mxUtils.eval`（真 `eval()`）在解析样式表时可达。用 mxGraph 的插件要显式关掉后两个。

@@ -28,6 +28,8 @@ declare global {
     mxToolbar: any;
     mxStencilRegistry: any;
     mxStencil: any;
+    mxStylesheetCodec: any;
+    mxDefaultToolbarCodec: any;
     mxShape: any;
     mxConnectionConstraint: any;
     mxPoint: any;
@@ -76,10 +78,10 @@ export function initMxGraph(): void {
   // mxGraph expects to run in a browser context with window/document.
   // Obsidian runs in Electron's renderer, so window/document exist.
   // We execute the source in the global scope.
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.textContent = mxClientSource;
-  document.head.appendChild(script);
+  document.head.createEl("script", {
+    attr: { type: "text/javascript" },
+    text: mxClientSource,
+  });
 
   // Set mxBasePath to empty — we bundle everything inline
   if (window.mxClient) {
@@ -87,6 +89,14 @@ export function initMxGraph(): void {
     // Prevent mxGraph from trying to load resources from a server
     window.mxClient.imageBasePath = "";
   }
+
+  // mxGraph 出厂默认给这两个 codec 打开了 allowEval（mxStencil / mxGraphView /
+  // mxObjectCodec 出厂就是 false，只剩它们俩）。它们会在解析 XML 时走到
+  // mxUtils.eval —— 也就是说一个手工构造过的 .drawio 文件可以借
+  // <mxStylesheet> / <mxDefaultToolbar> 里的 <add as="..."> 执行 JS。
+  // 本插件从不使用这两个 codec 的表达式能力，直接关掉，零功能影响。
+  if (window.mxStylesheetCodec) window.mxStylesheetCodec.allowEval = false;
+  if (window.mxDefaultToolbarCodec) window.mxDefaultToolbarCodec.allowEval = false;
 
   initialized = true;
 }

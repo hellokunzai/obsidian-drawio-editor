@@ -7,6 +7,7 @@ const translations: Record<string, Record<string, string>> = {
     "command.createDiagram": "Create new diagram",
     "file.untitledDiagram": "Untitled Diagram",
     "file.newFlowchart": "New flowchart",
+    "file.openAsDiagram": "Open as diagram",
     "view.displayText": "Draw.io Diagram",
 
     // Format panel (right sidebar, shown when a shape is selected)
@@ -85,6 +86,8 @@ const translations: Record<string, Record<string, string>> = {
     "notice.saveFailed": "Failed to save diagram: ",
     "notice.saved": "Diagram saved",
     "notice.createFailed": "Failed to create diagram: ",
+    "notice.openFailed": "Failed to open as diagram: ",
+    "common.close": "Close",
     "settings.autoSave.name": "Auto save",
     "settings.autoSave.desc": "Write changes back to the file automatically after you stop editing. When off, save with the toolbar button only; switching or closing the tab will not write anything.",
     "settings.autoSaveDelay.name": "Auto save delay (ms)",
@@ -307,6 +310,7 @@ const translations: Record<string, Record<string, string>> = {
     "command.createDiagram": "新建图表",
     "file.untitledDiagram": "未命名图表",
     "file.newFlowchart": "新建流程图",
+    "file.openAsDiagram": "以流程图打开",
     "view.displayText": "Draw.io 图表",
 
     // 格式面板（选中图形时右侧滑出）
@@ -385,6 +389,8 @@ const translations: Record<string, Record<string, string>> = {
     "notice.saveFailed": "保存图表失败：",
     "notice.saved": "图表已保存",
     "notice.createFailed": "创建图表失败：",
+    "notice.openFailed": "无法以流程图打开：",
+    "common.close": "关闭",
     "settings.autoSave.name": "自动保存",
     "settings.autoSave.desc": "停止编辑后自动把改动写回文件。关闭后只能用工具栏的保存按钮手动保存，切换或关闭标签页也不会写盘。",
     "settings.autoSaveDelay.name": "自动保存延迟（毫秒）",

@@ -35,17 +35,13 @@ let stencilsLoaded = false;
 export function loadAllStencils(): void {
   if (stencilsLoaded) return;
 
-  let ok = 0;
   for (const stencil of BUNDLED_STENCILS) {
-    if (loadStencilSet(stencil.xml)) {
-      ok++;
-    } else {
+    if (!loadStencilSet(stencil.xml)) {
       console.warn(`Failed to load stencil: ${stencil.name}`);
     }
   }
 
   stencilsLoaded = true;
-  console.log(`Draw.io stencil sets loaded: ${ok}/${BUNDLED_STENCILS.length}`);
 }
 
 /**

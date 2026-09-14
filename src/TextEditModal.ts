@@ -63,7 +63,7 @@ export class TextEditModal extends Modal {
     }
 
     if (this.opts.hint) {
-      contentEl.createEl("div", {
+      contentEl.createDiv({
         cls: "drawio-text-edit-hint",
         text: this.opts.hint,
       });

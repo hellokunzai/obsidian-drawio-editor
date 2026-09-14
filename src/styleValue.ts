@@ -18,7 +18,11 @@
 
 /** 样式值是否等于期望的字面量（数字 / 字符串两种形态都认） */
 export function styleIs(value: unknown, expected: string): boolean {
-  if (value === null || value === undefined) return false;
+  // 只认基本类型：mxGraph 读回来的开关值要么是数字 0/1，要么是字符串，
+  // 其它形态（对象等）一律按「不等」处理，避免 String() 出 [object Object]。
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+    return false;
+  }
   return String(value) === expected;
 }
 

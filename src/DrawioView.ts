@@ -42,10 +42,30 @@ import { FindReplacePanel } from "./FindReplacePanel";
 import { DEFAULT_LAYER_ID, LayersPanel } from "./LayersPanel";
 import { TagsPanel } from "./TagsPanel";
 import { MinimapPanel } from "./MinimapPanel";
+import { setSvgMarkup } from "./svg";
 
 export const VIEW_TYPE_DRAWIO = "drawio-editor-view";
 /** 自绘流程图图标 id，在 main.ts 的 onload 里通过 addIcon 注册 */
 export const DRAWIO_ICON_ID = "drawio-diagram";
+
+/**
+ * 把 mxGraph 的 value 归一成字符串。
+ *
+ * value 可能是纯字符串，也可能是 XML 节点（label 里带 HTML 时 mxGraph 存节点）。
+ * 节点走 XMLSerializer（mxUtils.getXml）而不是 `outerHTML`：后者属于官方点名的
+ * 属性，而且在 XML 文档上语义不如 XMLSerializer 明确。
+ */
+function valueToText(value: any): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value.nodeType === "number") {
+    try {
+      return mxUtils().getXml(value) || String(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
 
 /**
  * 一个页面：对应 `.drawio` 文件里 `<mxfile>` 下的一个 `<diagram>` 节点。
@@ -84,7 +104,7 @@ export class DrawioView extends FileView {
   /** 上一次的「纸型 + 朝向」，用于判断是否需要把视口滚回纸面左上角 */
   private lastPagesCfg = "";
   private isDirty = false;
-  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private saveTimeout: number | null = null;
   private dragGhost: HTMLElement | null = null;
   private paletteDrag: {
     shape: ShapeDef;
@@ -330,11 +350,11 @@ export class DrawioView extends FileView {
         section.addClass("drawio-palette-section-collapsed");
       }
       const header = section.createEl("button", { cls: "drawio-palette-header", attr: { type: "button" } });
-      header.createEl("span", {
-        cls: "drawio-palette-arrow",
-        text: "▾",
+      header.createSpan({ cls: "drawio-palette-arrow", text: "▾" });
+      header.createSpan({
+        cls: "drawio-palette-title",
+        text: tOr(`shapeCategory.${category.key}`, category.title),
       });
-      header.createEl("span", { cls: "drawio-palette-title", text: tOr(`shapeCategory.${category.key}`, category.title) });
 
       const grid = section.createDiv({ cls: "drawio-palette-grid" });
 
@@ -369,8 +389,10 @@ export class DrawioView extends FileView {
     item.setAttribute("data-shape-id", shape.id);
     item.setAttribute("title", getShapeLabel(shape));
 
-    // SVG icon via innerHTML
-    item.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`;
+    setSvgMarkup(
+      item,
+      `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`
+    );
 
     this.makeShapeDraggable(item, shape);
 
@@ -404,7 +426,10 @@ export class DrawioView extends FileView {
       });
       item.setAttribute("data-shape-id", shapeDef.id);
       item.setAttribute("title", shapeDef.name);
-      item.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shapeDef.icon}"/></svg>`;
+      setSvgMarkup(
+        item,
+        `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shapeDef.icon}"/></svg>`
+      );
 
       this.makeShapeDraggable(item, shapeDef);
 
@@ -464,8 +489,8 @@ export class DrawioView extends FileView {
       cls: "drawio-palette-header",
       attr: { type: "button" },
     });
-    header.createEl("span", { cls: "drawio-palette-arrow", text: "▾" });
-    header.createEl("span", {
+    header.createSpan({ cls: "drawio-palette-arrow", text: "▾" });
+    header.createSpan({
       cls: "drawio-palette-title",
       text: tOr("shapeCategory.scratchpad", "Scratchpad"),
     });
@@ -648,7 +673,10 @@ export class DrawioView extends FileView {
 
     const size = DrawioView.DRAG_GHOST_SIZE;
     const ghost = document.body.createDiv({ cls: "drawio-drag-ghost" });
-    ghost.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`;
+    setSvgMarkup(
+      ghost,
+      `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${shape.icon}"/></svg>`
+    );
 
     this.dragGhost = ghost;
   }
@@ -719,11 +747,13 @@ export class DrawioView extends FileView {
       cls: "clickable-icon drawio-toolbar-btn drawio-toolbar-viewbtn",
       attr: { title: t("view.menu"), "aria-label": t("view.menu") },
     });
-    this.viewBtnEl.innerHTML =
+    setSvgMarkup(
+      this.viewBtnEl,
       '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">' +
-      '<rect x="3" y="4.5" width="15" height="15" rx="1.5"/><path d="M9.5 4.5v15"/></svg>' +
-      '<svg class="drawio-toolbar-viewbtn-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="m6 9 6 6 6-6"/></svg>';
+        '<rect x="3" y="4.5" width="15" height="15" rx="1.5"/><path d="M9.5 4.5v15"/></svg>' +
+        '<svg class="drawio-toolbar-viewbtn-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="m6 9 6 6 6-6"/></svg>'
+    );
     toolbar.createDiv({ cls: "drawio-toolbar-sep" });
 
     interface ToolBtn {
@@ -747,7 +777,7 @@ export class DrawioView extends FileView {
       { id: "clear", icon: "file-minus", title: t("toolbar.clear"), action: () => this.clearCanvas() },
       { sep: true },
       { id: "export", icon: "download", title: t("toolbar.export"), action: () => this.exportSVG() },
-      { id: "save", icon: "save", title: t("toolbar.save"), action: () => this.saveDiagram() },
+      { id: "save", icon: "save", title: t("toolbar.save"), action: () => void this.saveDiagram() },
     ];
 
     for (const btn of btns) {
@@ -759,7 +789,7 @@ export class DrawioView extends FileView {
         cls: "clickable-icon drawio-toolbar-btn",
         attr: { title: btn.title || "" },
       });
-      el.innerHTML = this.renderIcon(btn.icon || "");
+      setSvgMarkup(el, this.renderIcon(btn.icon || ""));
       if (btn.id === "undo") this.undoBtnEl = el;
       if (btn.id === "redo") this.redoBtnEl = el;
       el.addEventListener("click", (e) => {
@@ -830,7 +860,6 @@ export class DrawioView extends FileView {
 
     const MxGraph = mxGraph();
     const MxEvent = mxEvent();
-    const MxRubberband = mxRubberband();
     const MxUndoManager = mxUndoManager();
 
     this.graph = new MxGraph(this.graphContainer);
@@ -1885,12 +1914,7 @@ export class DrawioView extends FileView {
     const cur = model.getValue(cell);
     let curStr = "";
     if (cur != null) {
-      curStr =
-        typeof cur === "string"
-          ? cur
-          : (cur as any).outerHTML
-          ? (cur as any).outerHTML
-          : String(cur);
+      curStr = valueToText(cur);
     }
     new TextEditModal(this.app, {
       title: t("ctx.modal.dataTitle"),
@@ -1940,12 +1964,7 @@ export class DrawioView extends FileView {
     const value = model.getValue(cell);
     let valueStr = "";
     if (value != null) {
-      valueStr =
-        typeof value === "string"
-          ? value
-          : (value as any).outerHTML
-          ? (value as any).outerHTML
-          : String(value);
+      valueStr = valueToText(value);
     }
     const geo = model.getGeometry(cell);
     const isEdge = model.isEdge(cell);
@@ -2122,8 +2141,8 @@ export class DrawioView extends FileView {
 
     // 拖拽途中实时算出「真正会被选中」的图形数量，给矩形加粗作为反馈
     const originalRepaint = rubberband.repaint;
-    rubberband.repaint = function () {
-      originalRepaint.apply(this, arguments);
+    rubberband.repaint = function (...args: any[]) {
+      originalRepaint.apply(this, args);
       if (!this.div || this.first == null) return;
       const hits = collectIntersecting(currentRegion());
       if (hits && hits.length > 0) {
@@ -2138,9 +2157,9 @@ export class DrawioView extends FileView {
     // ⚠️ 注意：不得影响 isActive 的真值（mouseUp 靠它决定是否调用 execute），
     //       所以淡出判断只用于 reset 内部的 fadeOut 分支，不在这里拦截。
     const prevIsActive = rubberband.isActive;
-    rubberband.isActive = function () {
+    rubberband.isActive = function (...args: any[]) {
       // 始终透传原始真假值，保证 execute 正常触发
-      const active = prevIsActive.apply(this, arguments);
+      const active = prevIsActive.apply(this, args);
       if (!active) return false;
       // 额外记录「是否该淡出」到实例上，供覆写的 reset 读取
       const container = graph.container as HTMLElement;
@@ -2160,16 +2179,16 @@ export class DrawioView extends FileView {
     // 覆写 reset：根据 _shouldFade 决定是否走淡出（原始 reset 读 this.fadeOut，
     // 我们在这里临时把它改成和 _shouldFade 一致）
     const originalReset = rubberband.reset;
-    rubberband.reset = function () {
+    rubberband.reset = function (...args: any[]) {
       if (this.div) {
         const shouldFade = (this as any)._shouldFade === true;
         // 临时覆盖 fadeOut 让原始 reset 走正确的分支
         const origFadeOut = this.fadeOut;
         this.fadeOut = shouldFade;
-        originalReset.apply(this, arguments);
+        originalReset.apply(this, args);
         this.fadeOut = origFadeOut;
       } else {
-        originalReset.apply(this, arguments);
+        originalReset.apply(this, args);
       }
     };
   }
@@ -2294,7 +2313,7 @@ export class DrawioView extends FileView {
     // 换了纸型也看不出变化（越界时会自动夹到最大滚动量）。
     if (this.plugin.settings.pageView && this.lastPagesCfg !== pagesCfg) {
       this.lastPagesCfg = pagesCfg;
-      requestAnimationFrame(() => this.scrollCanvasToOrigin());
+      window.requestAnimationFrame(() => this.scrollCanvasToOrigin());
     } else {
       this.lastPagesCfg = pagesCfg;
     }
@@ -2740,8 +2759,8 @@ export class DrawioView extends FileView {
     // 文件没解析成功：不许自动写盘，避免把原文件清空
     if (this.loadError) return;
 
-    if (this.saveTimeout) clearTimeout(this.saveTimeout);
-    this.saveTimeout = setTimeout(() => {
+    if (this.saveTimeout) window.clearTimeout(this.saveTimeout);
+    this.saveTimeout = window.setTimeout(() => {
       this.saveTimeout = null;
       void this.saveDiagram();
     }, this.plugin.settings.autoSaveDelay);
@@ -2783,7 +2802,9 @@ export class DrawioView extends FileView {
         `<mxfile host="obsidian-drawio-editor" modified="${new Date().toISOString()}" version="${this.plugin.manifest.version}">\n` +
         `${diagrams.join("\n")}\n</mxfile>`;
 
-      await this.app.vault.modify(this.file, content);
+      // process 是「原子地读-改-写」：比 modify 的直接覆盖更安全，
+      // 不会和 Obsidian 自己的写入队列打架（@since 1.1.0）。
+      await this.app.vault.process(this.file, () => content);
       this.isDirty = false;
       return true;
     } catch (err) {
@@ -2845,10 +2866,14 @@ export class DrawioView extends FileView {
     const svg = MxUtils.getXml(svgRoot);
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (this.file?.basename ?? "diagram") + ".svg";
+    const a = document.body.createEl("a", {
+      attr: {
+        href: url,
+        download: (this.file?.basename ?? "diagram") + ".svg",
+      },
+    });
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
     new Notice(t("notice.svgExported"));
   }
@@ -2859,7 +2884,7 @@ export class DrawioView extends FileView {
       void this.saveDiagram();
     }
     if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
+      window.clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
     this.endPaletteDrag();

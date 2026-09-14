@@ -1,7 +1,7 @@
 import { FloatingPanel, FloatingPanelHost } from "./FloatingPanel";
 import { t } from "./i18n";
 
-export interface MinimapHost extends FloatingPanelHost {}
+export type MinimapHost = FloatingPanelHost;
 
 /** 小地图内容四周留白（像素） */
 const PADDING = 6;

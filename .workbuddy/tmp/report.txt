@@ -1,4 +1,0 @@
-﻿version=153.0.4234.32
-cwd=E:\workspace\git\obsidian-drawio-editor
-shotExists=False
-logExists=True

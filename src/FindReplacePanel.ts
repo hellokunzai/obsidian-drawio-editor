@@ -1,6 +1,7 @@
 import { Notice } from "obsidian";
 import { FloatingPanel, FloatingPanelHost } from "./FloatingPanel";
 import { t } from "./i18n";
+import { setSvgMarkup } from "./svg";
 
 export interface FindReplaceHost extends FloatingPanelHost {
   /** 替换文本后触发自动保存 */
@@ -143,7 +144,10 @@ export class FindReplacePanel {
     btn.type = "button";
     const path =
       dir === "prev" ? '<path d="m18 15-6-6-6 6"/>' : '<path d="m6 9 6 6 6-6"/>';
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+    setSvgMarkup(
+      btn,
+      `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`
+    );
     return btn;
   }
 

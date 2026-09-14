@@ -1,0 +1,92 @@
+name: Beta (BRAT)
+
+# 给 BRAT 用户提前测试用的预发布通道。约定写在 commit message 里：
+#   [beta] → 构建并发一个预发布版 <version>-beta.<序号>
+#   [rc]   → 发一个 <version>-rc.<序号> 预发布版，并清掉本轮遗留的 beta 预发布
+# 普通 commit 不触发任何发布。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    name: Publish prerelease
+    # head_commit 理论上必有，兜一个空串避免 contains(null, ...) 报错
+    if: contains(github.event.head_commit.message || '', '[beta]') || contains(github.event.head_commit.message || '', '[rc]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          for f in main.js manifest.json styles.css; do
+            if [ ! -f "$f" ]; then
+              echo "::error::缺少 Release 资产 $f"
+              exit 1
+            fi
+          done
+
+      - name: Resolve prerelease tag
+        id: tag
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          BASE=$(node -p "require('./manifest.json').version")
+          if printf '%s' "${MESSAGE}" | grep -q '\[rc\]'; then
+            CHANNEL="rc"
+          else
+            CHANNEL="beta"
+          fi
+          echo "tag=${BASE}-${CHANNEL}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}"
+
+      # [rc] 表示本轮 beta 结束：把旧的 beta 预发布连同 tag 一起收掉，避免 BRAT 侧混淆
+      - name: Clean up previous beta prereleases
+        if: steps.tag.outputs.channel == 'rc'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 100 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease) | select(.tagName | contains("-beta.")) | .tagName' \
+          | while read -r tag; do
+              if [ -n "${tag}" ]; then
+                echo "删除旧 beta 预发布 ${tag}"
+                gh release delete "${tag}" --yes --cleanup-tag || echo "::warning::删除 ${tag} 失败，已跳过"
+              fi
+            done
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release create "${TAG}" \
+            main.js \
+            manifest.json \
+            styles.css \
+            --title "${TAG}" \
+            --prerelease \
+            --generate-notes

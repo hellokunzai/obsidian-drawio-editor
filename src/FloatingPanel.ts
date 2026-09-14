@@ -1,4 +1,6 @@
 import { MIN_PANEL_H, MIN_PANEL_W, PanelGeometry } from "./settings";
+import { t } from "./i18n";
+import { setSvgMarkup } from "./svg";
 
 /** 浮动工具窗读写自身几何信息的宿主（实现方负责持久化） */
 export interface FloatingPanelHost {
@@ -76,10 +78,12 @@ export class FloatingPanel {
 
     const closeBtn = head.createEl("button", {
       cls: "drawio-toolwin-close",
-      attr: { "aria-label": "close", type: "button" },
+      attr: { "aria-label": t("common.close"), type: "button" },
     });
-    closeBtn.innerHTML =
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    setSvgMarkup(
+      closeBtn,
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+    );
     closeBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();

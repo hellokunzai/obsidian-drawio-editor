@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { setSvgMarkup } from "./svg";
 
 /** 页面栏只关心「标识 + 显示名」，模型数据由宿主（DrawioView）保管 */
 export interface PageBarPage {
@@ -87,7 +88,7 @@ export class PageBar {
       cls: "clickable-icon drawio-pagebar-menu",
       attr: { title: t("page.menuTip") },
     });
-    menuBtn.innerHTML = SVG_MENU;
+    setSvgMarkup(menuBtn, SVG_MENU);
     menuBtn.addEventListener("click", (e) => {
       e.preventDefault();
       const r = menuBtn.getBoundingClientRect();
@@ -102,7 +103,7 @@ export class PageBar {
       cls: "clickable-icon drawio-pagebar-add",
       attr: { title: t("page.new") },
     });
-    addBtn.innerHTML = SVG_PLUS;
+    setSvgMarkup(addBtn, SVG_PLUS);
     addBtn.addEventListener("click", (e) => {
       e.preventDefault();
       this.host.addPage();
@@ -144,7 +145,7 @@ export class PageBar {
           cls: "clickable-icon drawio-pagebar-caret",
           attr: { title: t("page.menuTip") },
         });
-        caret.innerHTML = SVG_CARET;
+        setSvgMarkup(caret, SVG_CARET);
         caret.addEventListener("pointerdown", (e) => e.stopPropagation());
         caret.addEventListener("click", (e) => {
           e.preventDefault();
@@ -304,9 +305,10 @@ export class PageBar {
     const pages = this.host.getPages();
     const current = pages[index] ? pages[index].name : "";
 
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "drawio-pagebar-rename";
+    const input = tab.createEl("input", {
+      cls: "drawio-pagebar-rename",
+      attr: { type: "text" },
+    });
     input.value = current;
 
     // 输入框宽度随文字长度自适应

@@ -1,3 +1,0 @@
-﻿--- a: exit= png=False len=0 :: 
---- b: exit= png=False len=0 :: 
---- c: exit= png=False len=0 :: 

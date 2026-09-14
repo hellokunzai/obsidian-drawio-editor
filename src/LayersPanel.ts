@@ -5,6 +5,7 @@ import {
   LayerDef,
 } from "./settings";
 import { t } from "./i18n";
+import { setSvgMarkup } from "./svg";
 import { mxUtils } from "./mxgraph-setup";
 
 /** 默认图层的 id（cell 不带 drawioLayer 键即属于它） */
@@ -137,7 +138,7 @@ export class LayersPanel {
       attr: { title, "aria-label": title },
     });
     btn.type = "button";
-    btn.innerHTML = svg(icon);
+    setSvgMarkup(btn, svg(icon));
     return btn;
   }
 
@@ -267,7 +268,7 @@ export class LayersPanel {
         },
       });
       eye.type = "button";
-      eye.innerHTML = svg(layer.visible ? ICON.eye : ICON.eyeOff);
+      setSvgMarkup(eye, svg(layer.visible ? ICON.eye : ICON.eyeOff));
       if (!layer.visible) eye.addClass("is-off");
       eye.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -282,7 +283,7 @@ export class LayersPanel {
         },
       });
       lock.type = "button";
-      lock.innerHTML = svg(layer.locked ? ICON.lock : ICON.unlock);
+      setSvgMarkup(lock, svg(layer.locked ? ICON.lock : ICON.unlock));
       if (layer.locked) lock.addClass("is-on");
       lock.addEventListener("click", (e) => {
         e.stopPropagation();

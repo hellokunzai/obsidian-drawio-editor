@@ -1,0 +1,34 @@
+name: Version Check
+
+# 版本号一致性守门：manifest.json / package.json / versions.json 三处必须对齐。
+# 不需要装依赖，跑得很快。
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: manifest / package / versions.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check version consistency
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            node .github/scripts/check-version.mjs --tag "${GITHUB_REF_NAME}"
+          else
+            node .github/scripts/check-version.mjs
+          fi

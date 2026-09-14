@@ -1,5 +1,6 @@
 import { mxUtils, mxConstants } from "./mxgraph-setup";
 import { t } from "./i18n";
+import { setSvgMarkup } from "./svg";
 
 /** 帮助函数：用原生 DOM 创建元素，保持本模块不依赖 Obsidian 的 HTMLElement 扩展 */
 function h<K extends keyof HTMLElementTagNameMap>(
@@ -488,17 +489,17 @@ export class FormatPanel {
     ) as HTMLButtonElement;
     b.title = label;
     b.setAttribute("aria-label", label);
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "2");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", d);
-    svg.appendChild(path);
-    b.appendChild(svg);
+    const svg = b.createSvg("svg", {
+      attr: {
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      },
+    });
+    svg.createSvg("path", { attr: { d } });
     return b;
   }
 
@@ -1125,7 +1126,7 @@ export class FormatPanel {
 
     const updateTrigger = (v: string) => {
       const opt = opts.find((o) => o.v === v) || opts[0];
-      trigger.innerHTML = renderSvg(opt.dash);
+      setSvgMarkup(trigger, renderSvg(opt.dash));
     };
 
     updateTrigger(value);
@@ -1137,7 +1138,7 @@ export class FormatPanel {
         "drawio-fmt-linestyle-item" + (opt.v === value ? " active" : "")
       ) as HTMLElement;
       item.dataset.value = opt.v;
-      item.innerHTML = renderSvg(opt.dash);
+      setSvgMarkup(item, renderSvg(opt.dash));
       item.addEventListener("click", (e) => {
         e.stopPropagation();
         onChange(opt.v);
@@ -1216,7 +1217,10 @@ export class FormatPanel {
       "button",
       "drawio-fmt-tbtn icon" + (active ? " active" : "")
     ) as HTMLButtonElement;
-    b.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+    setSvgMarkup(
+      b,
+      `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`
+    );
     b.addEventListener("click", onClick);
     return b;
   }
@@ -1279,7 +1283,7 @@ export class FormatPanel {
     if (this.currentCells.length === 0) return;
     const style = this.graph.getCellStyle(this.currentCells[0]);
     try {
-      navigator.clipboard?.writeText(JSON.stringify(style));
+      void navigator.clipboard?.writeText(JSON.stringify(style));
     } catch {
       /* ignore */
     }
